@@ -37,7 +37,7 @@ DEFINE_string(urdf, "", "Name of urdf to load");
 DEFINE_double(target_realtime_rate, 1.0,
               "Playback speed.  See documentation for "
               "Simulator::set_target_realtime_rate() for details.");
-DEFINE_bool(torque_control, false, "Simulate using torque control mode.");
+DEFINE_bool(torque_control, true, "Simulate using torque control mode.");
 DEFINE_double(sim_dt, 3e-3,
               "The time step to use for MultibodyPlant model "
               "discretization.");

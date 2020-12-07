@@ -73,7 +73,7 @@ class RobotPlanRunner {
     lcmt_iiwa_command iiwa_command;
     iiwa_command.num_joints = kNumJoints;
     iiwa_command.joint_position.resize(kNumJoints, 0.);
-    iiwa_command.num_torques = 0;
+    iiwa_command.num_torques = kNumJoints;
     iiwa_command.joint_torque.resize(kNumJoints, 0.);
 
     while (true) {
@@ -82,6 +82,30 @@ class RobotPlanRunner {
       while (0 == lcm_.handleTimeout(10) || iiwa_status_.utime == -1) { }
 
       cur_time_us = iiwa_status_.utime;
+
+
+      // // -------------------------------- Debug ----------------------------------
+      // if (plan_number_ != cur_plan_number) {
+      //     std::cout << "Starting new plan." << std::endl;
+      //     start_time_us = cur_time_us;
+      //     cur_plan_number = plan_number_;
+      // }
+
+      // const double cur_traj_time_s =
+      //     static_cast<double>(cur_time_us - start_time_us) / 1e6;
+      // const auto desired_next = plan_->value(cur_traj_time_s);
+
+      // iiwa_command.utime = iiwa_status_.utime;
+
+      // for (int joint = 0; joint < kNumJoints; joint++) {
+      //   // iiwa_command.joint_position[joint] = desired_next(joint);
+      //   iiwa_command.joint_position[joint] = iiwa_status_.joint_position_measured[joint];
+      //   iiwa_command.joint_torque[joint] = 5.0;
+      // }
+
+      // lcm_.publish(kLcmCommandChannel, &iiwa_command);
+
+
 
       if (plan_) {
         if (plan_number_ != cur_plan_number) {
@@ -97,10 +121,13 @@ class RobotPlanRunner {
         iiwa_command.utime = iiwa_status_.utime;
 
         for (int joint = 0; joint < kNumJoints; joint++) {
-          iiwa_command.joint_position[joint] = desired_next(joint);
+          // iiwa_command.joint_position[joint] = desired_next(joint);
+          iiwa_command.joint_position[joint] = iiwa_status_.joint_position_measured[joint];
+          iiwa_command.joint_torque[joint] = 5.0;
         }
 
         lcm_.publish(kLcmCommandChannel, &iiwa_command);
+      
       }
     }
   }
