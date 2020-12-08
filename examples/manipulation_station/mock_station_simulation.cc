@@ -42,7 +42,7 @@ DEFINE_double(target_realtime_rate, 1.0,
               "Simulator::set_target_realtime_rate() for details.");
 DEFINE_double(duration, std::numeric_limits<double>::infinity(),
               "Simulation duration.");
-DEFINE_string(setup, "manipulation_class",
+DEFINE_string(setup, "clutter_clearing",
               "Manipulation station type to simulate. "
               "Can be {manipulation_class, clutter_clearing}");
 
@@ -60,7 +60,7 @@ int do_main(int argc, char* argv[]) {
         math::RigidTransform<double>(math::RotationMatrix<double>::Identity(),
                                      Eigen::Vector3d(0.6, 0, 0)));
   } else if (FLAGS_setup == "clutter_clearing") {
-    station->SetupClutterClearingStation();
+    station->SetupClutterClearingStation({}, IiwaCollisionModel::kBoxCollision);
     station->AddManipulandFromFile(
         "drake/manipulation/models/ycb/sdf/003_cracker_box.sdf",
         math::RigidTransform<double>(math::RollPitchYaw<double>(-1.57, 0, 3),

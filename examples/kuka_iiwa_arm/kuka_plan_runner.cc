@@ -123,7 +123,7 @@ class RobotPlanRunner {
         for (int joint = 0; joint < kNumJoints; joint++) {
           // iiwa_command.joint_position[joint] = desired_next(joint);
           iiwa_command.joint_position[joint] = iiwa_status_.joint_position_measured[joint];
-          iiwa_command.joint_torque[joint] = 5.0;
+          iiwa_command.joint_torque[joint] = -5.5;
         }
 
         lcm_.publish(kLcmCommandChannel, &iiwa_command);
