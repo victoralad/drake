@@ -83,30 +83,6 @@ class RobotPlanRunner {
 
       cur_time_us = iiwa_status_.utime;
 
-
-      // // -------------------------------- Debug ----------------------------------
-      // if (plan_number_ != cur_plan_number) {
-      //     std::cout << "Starting new plan." << std::endl;
-      //     start_time_us = cur_time_us;
-      //     cur_plan_number = plan_number_;
-      // }
-
-      // const double cur_traj_time_s =
-      //     static_cast<double>(cur_time_us - start_time_us) / 1e6;
-      // const auto desired_next = plan_->value(cur_traj_time_s);
-
-      // iiwa_command.utime = iiwa_status_.utime;
-
-      // for (int joint = 0; joint < kNumJoints; joint++) {
-      //   // iiwa_command.joint_position[joint] = desired_next(joint);
-      //   iiwa_command.joint_position[joint] = iiwa_status_.joint_position_measured[joint];
-      //   iiwa_command.joint_torque[joint] = 5.0;
-      // }
-
-      // lcm_.publish(kLcmCommandChannel, &iiwa_command);
-
-
-
       if (plan_) {
         if (plan_number_ != cur_plan_number) {
           std::cout << "Starting new plan." << std::endl;
@@ -123,12 +99,18 @@ class RobotPlanRunner {
         for (int joint = 0; joint < kNumJoints; joint++) {
           // iiwa_command.joint_position[joint] = desired_next(joint);
           iiwa_command.joint_position[joint] = iiwa_status_.joint_position_measured[joint];
-          iiwa_command.joint_torque[joint] = -5.5;
+          iiwa_command.joint_torque[joint] = -0.0;
         }
 
         lcm_.publish(kLcmCommandChannel, &iiwa_command);
       
       }
+      std::cout << "------------------------------------" << std::endl;
+      int nv = plant_.num_velocities();
+      Eigen::MatrixXd M(nv, nv);
+      const std::unique_ptr<systems::Context<double>> plant_context = plant_.CreateDefaultContext();
+      plant_.CalcMassMatrix(*plant_context, &M);
+      std::cout << M << std::endl;
     }
   }
 
