@@ -106,11 +106,14 @@ class RobotPlanRunner {
       
       }
       std::cout << "------------------------------------" << std::endl;
-      int nv = plant_.num_velocities();
-      Eigen::MatrixXd M(nv, nv);
-      const std::unique_ptr<systems::Context<double>> plant_context = plant_.CreateDefaultContext();
-      plant_.CalcMassMatrix(*plant_context, &M);
-      std::cout << M << std::endl;
+      for (int joint = 0; joint < kNumJoints; joint++) {
+        std::cout << iiwa_status_.joint_torque_measured[joint] << std::endl;
+      }
+      // int nv = plant_.num_velocities();
+      // Eigen::MatrixXd M(nv, nv);
+      // const std::unique_ptr<systems::Context<double>> plant_context = plant_.CreateDefaultContext();
+      // plant_.CalcMassMatrix(*plant_context, &M);
+      // std::cout << M << std::endl;
     }
   }
 
