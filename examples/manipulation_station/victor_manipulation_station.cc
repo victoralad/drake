@@ -313,6 +313,18 @@ void ManipulationStation<T>::SetupManipulationClassStation(
 }
 
 template <typename T>
+void ManipulationStation<T>::SetupEmptyManipulationStation(
+  IiwaCollisionModel collision_model,
+  SchunkCollisionModel schunk_model) {
+  DRAKE_DEMAND(setup_ == Setup::kNone);
+  setup_ = Setup::kManipulationClass;
+
+  // Add the default iiwa/wsg models.
+  AddDefaultIiwa(collision_model);
+  AddDefaultWsg(schunk_model);
+}
+
+template <typename T>
 void ManipulationStation<T>::SetupPlanarIiwaStation(
   SchunkCollisionModel schunk_model) {
   DRAKE_DEMAND(setup_ == Setup::kNone);

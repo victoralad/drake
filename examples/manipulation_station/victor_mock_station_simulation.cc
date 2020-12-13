@@ -42,9 +42,9 @@ DEFINE_double(target_realtime_rate, 1.0,
               "Simulator::set_target_realtime_rate() for details.");
 DEFINE_double(duration, std::numeric_limits<double>::infinity(),
               "Simulation duration.");
-DEFINE_string(setup, "manipulation_class",
+DEFINE_string(setup, "empty",
               "Manipulation station type to simulate. "
-              "Can be {manipulation_class, clutter_clearing}");
+              "Can be {manipulation_class, clutter_clearing, empty}");
 
 int do_main(int argc, char* argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
@@ -65,6 +65,8 @@ int do_main(int argc, char* argv[]) {
         "drake/manipulation/models/ycb/sdf/003_cracker_box.sdf",
         math::RigidTransform<double>(math::RollPitchYaw<double>(-1.57, 0, 3),
                                      Eigen::Vector3d(-0.3, -0.55, 0.36)));
+  } else if (FLAGS_setup == "empty") {
+    station->SetupEmptyManipulationStation();
   } else {
     throw std::domain_error(
         "Unrecognized station type. Options are "

@@ -170,6 +170,11 @@ class ManipulationStation : public systems::Diagram<T> {
   void SetupManipulationClassStation(
       IiwaCollisionModel collision_model = IiwaCollisionModel::kNoCollision,
       SchunkCollisionModel schunk_model = SchunkCollisionModel::kBox);
+  
+  // Set up empty work station with just the robot and the shunk gripper.
+  void SetupEmptyManipulationStation(
+      IiwaCollisionModel collision_model = IiwaCollisionModel::kBoxCollision,
+      SchunkCollisionModel schunk_model = SchunkCollisionModel::kBox);
 
   /// Adds a version of the iiwa with joints that would result in
   /// out-of-plane rotations welded in a fixed orientation, reducing the
