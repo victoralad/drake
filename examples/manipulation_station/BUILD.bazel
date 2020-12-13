@@ -49,37 +49,6 @@ drake_cc_library(
 )
 
 drake_cc_library(
-    name = "victor_manipulation_station",
-    srcs = [
-        "victor_manipulation_station.cc",
-    ],
-    hdrs = [
-        "victor_manipulation_station.h",
-    ],
-    data = [
-        ":models",
-        "//examples/kuka_iiwa_arm:models",
-        "//manipulation/models/iiwa_description:models",
-        "//manipulation/models/wsg_50_description:models",
-        "//manipulation/models/ycb:models",
-    ],
-    visibility = ["//visibility:public"],
-    deps = [
-        "//common:find_resource",
-        "//geometry:scene_graph",
-        "//geometry/render:render_engine_vtk",
-        "//manipulation/schunk_wsg:schunk_wsg_constants",
-        "//manipulation/schunk_wsg:schunk_wsg_position_controller",
-        "//math:geometric_transform",
-        "//multibody/parsing",
-        "//multibody/plant",
-        "//systems/controllers:inverse_dynamics_controller",
-        "//systems/framework",
-        "//systems/sensors:rgbd_sensor",
-    ],
-)
-
-drake_cc_library(
     name = "manipulation_station_hardware_interface",
     srcs = [
         "manipulation_station_hardware_interface.cc",
@@ -120,30 +89,6 @@ drake_cc_binary(
     ],
     deps = [
         ":manipulation_station",
-        "//geometry:geometry_visualization",
-        "//lcm",
-        "//manipulation/kuka_iiwa:iiwa_command_receiver",
-        "//manipulation/kuka_iiwa:iiwa_status_sender",
-        "//manipulation/schunk_wsg:schunk_wsg_lcm",
-        "//systems/analysis:simulator",
-        "//systems/lcm",
-        "@gflags",
-    ],
-)
-
-drake_cc_binary(
-    name = "victor_mock_station_simulation",
-    srcs = [
-        "victor_mock_station_simulation.cc",
-    ],
-    add_test_rule = 1,
-    tags = vtk_test_tags(),
-    test_rule_args = [
-        "--target_realtime_rate=0.0",
-        "--duration=0.1",
-    ],
-    deps = [
-        ":victor_manipulation_station",
         "//geometry:geometry_visualization",
         "//lcm",
         "//manipulation/kuka_iiwa:iiwa_command_receiver",
