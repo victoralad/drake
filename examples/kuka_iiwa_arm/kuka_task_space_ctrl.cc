@@ -16,6 +16,7 @@
 
 #include "lcm/lcm-cpp.hpp"
 #include "robotlocomotion/robot_plan_t.hpp"
+#include <gflags/gflags.h>
 
 #include "drake/common/drake_assert.h"
 #include "drake/common/find_resource.h"
@@ -24,6 +25,14 @@
 #include "drake/lcmt_iiwa_status.hpp"
 #include "drake/multibody/parsing/parser.h"
 #include "drake/multibody/plant/multibody_plant.h"
+#include "drake/math/rigid_transform.h"
+
+DEFINE_double(x, 0., "x coordinate to move to");
+DEFINE_double(y, 0., "y coordinate to move to");
+DEFINE_double(z, 0., "z coordinate to move to");
+DEFINE_double(roll, 0., "target roll about world x axis for end effector");
+DEFINE_double(pitch, 0., "target pitch about world y axis for end effector");
+DEFINE_double(yaw, 0., "target yaw about world z axis for end effector");
 
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
@@ -101,6 +110,8 @@ class RobotPlanRunner {
           iiwa_command.joint_position[joint] = iiwa_status_.joint_position_measured[joint];
           iiwa_command.joint_torque[joint] = 0.1;
         }
+        std::cout << "--------------------------" << std::endl;
+        std::cout << FLAGS_x << " " << FLAGS_y << " " << FLAGS_yaw << std::endl;
 
         lcm_.publish(kLcmCommandChannel, &iiwa_command);
       }
@@ -200,6 +211,7 @@ int do_main() {
 }  // namespace drake
 
 
-int main() {
+int main(int argc, char* argv[]) {
+  gflags::ParseCommandLineFlags(&argc, &argv, true);
   return drake::examples::kuka_iiwa_arm::do_main();
 }

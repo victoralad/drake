@@ -147,6 +147,8 @@ drake_cc_binary(
         "//manipulation/models/iiwa_description:models",
     ],
     deps = [
+        "//common:add_text_logging_gflags",
+        "//math:geometric_transform",
         "//common:find_resource",
         "//common/trajectories:piecewise_polynomial",
         "//lcmtypes:iiwa",
