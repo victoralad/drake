@@ -61,13 +61,9 @@ class RobotPlanRunner {
  public:
   /// plant is aliased
   explicit RobotPlanRunner(const multibody::MultibodyPlant<double>& plant)
-      : plant_(plant), plan_number_(0) {
+      : plant_(plant) {
     lcm_.subscribe(kLcmStatusChannel,
                     &RobotPlanRunner::HandleStatus, this);
-    lcm_.subscribe(kLcmPlanChannel,
-                    &RobotPlanRunner::HandlePlan, this);
-    lcm_.subscribe(kLcmStopChannel,
-                    &RobotPlanRunner::HandleStop, this);
   }
 
   void Run() {
@@ -98,7 +94,10 @@ class RobotPlanRunner {
         iiwa_command.joint_torque[joint] = 0.0;
       }
       std::cout << "--------------------------" << std::endl;
-      std::cout << FLAGS_x << " " << FLAGS_y << " " << FLAGS_yaw << std::endl;
+      // std::cout << FLAGS_x << " " << FLAGS_y << " " << FLAGS_yaw << std::endl;
+
+      SetDynamicParam();
+      std::cout << M_ << std::endl;
 
       lcm_.publish(kLcmCommandChannel, &iiwa_command);
     }
@@ -110,71 +109,18 @@ class RobotPlanRunner {
     iiwa_status_ = *status;
   }
 
-  void HandlePlan(const ::lcm::ReceiveBuffer*, const std::string&,
-                  const robotlocomotion::robot_plan_t* plan) {
-    std::cout << "New plan received." << std::endl;
-    if (iiwa_status_.utime == -1) {
-      std::cout << "Discarding plan, no status message received yet"
-                << std::endl;
-      return;
-    } else if (plan->num_states < 2) {
-      std::cout << "Discarding plan, Not enough knot points." << std::endl;
-      return;
-    }
-
-    std::vector<Eigen::MatrixXd> knots(plan->num_states,
-                                       Eigen::MatrixXd::Zero(kNumJoints, 1));
-    for (int i = 0; i < plan->num_states; ++i) {
-      const auto& state = plan->plan[i];
-      for (int j = 0; j < state.num_joints; ++j) {
-        if (!plant_.HasJointNamed(state.joint_name[j])) {
-          continue;
-        }
-        const multibody::Joint<double>& joint =
-            plant_.GetJointByName(state.joint_name[j]);
-        DRAKE_DEMAND(joint.num_positions() == 1);
-        const int idx = joint.position_start();
-        DRAKE_DEMAND(idx < kNumJoints);
-
-        // Treat the matrix at knots[i] as a column vector.
-        if (i == 0) {
-          // Always start moving from the position which we're
-          // currently commanding.
-          DRAKE_DEMAND(iiwa_status_.utime != -1);
-          knots[0](idx, 0) = iiwa_status_.joint_position_commanded[j];
-
-        } else {
-          knots[i](idx, 0) = state.joint_position[j];
-        }
-      }
-    }
-
-    for (int i = 0; i < plan->num_states; ++i) {
-      std::cout << knots[i] << std::endl;
-    }
-
-    std::vector<double> input_time;
-    for (int k = 0; k < static_cast<int>(plan->plan.size()); ++k) {
-      input_time.push_back(plan->plan[k].utime / 1e6);
-    }
-    const Eigen::MatrixXd knot_dot = Eigen::MatrixXd::Zero(kNumJoints, 1);
-    plan_.reset(new PiecewisePolynomial<double>(
-        PiecewisePolynomial<double>::CubicWithContinuousSecondDerivatives(
-            input_time, knots, knot_dot, knot_dot)));
-    ++plan_number_;
-  }
-
-  void HandleStop(const ::lcm::ReceiveBuffer*, const std::string&,
-                  const robotlocomotion::robot_plan_t*) {
-    std::cout << "Received stop command. Discarding plan." << std::endl;
-    plan_.reset();
+  void SetDynamicParam() {
+    int nv = plant_.num_velocities();
+    Eigen::MatrixXd M(nv, nv);
+    M_ = M;
+    const std::unique_ptr<systems::Context<double>> plant_context = plant_.CreateDefaultContext();
+    plant_.CalcMassMatrix(*plant_context, &M_);
   }
 
   ::lcm::LCM lcm_;
   const multibody::MultibodyPlant<double>& plant_;
-  int plan_number_{};
-  std::unique_ptr<PiecewisePolynomial<double>> plan_;
   lcmt_iiwa_status iiwa_status_;
+  Eigen::MatrixXd M_; // Mass matrix.
 };
 
 int do_main() {
