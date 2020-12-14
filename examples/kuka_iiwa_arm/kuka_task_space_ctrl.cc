@@ -71,9 +71,8 @@ class RobotPlanRunner {
   }
 
   void Run() {
-    int cur_plan_number = plan_number_;
     int64_t cur_time_us = -1;
-    int64_t start_time_us = -1;
+    // int64_t start_time_us = -1;
 
     // Initialize the timestamp to an invalid number so we can detect
     // the first message.
@@ -92,29 +91,16 @@ class RobotPlanRunner {
 
       cur_time_us = iiwa_status_.utime;
 
-      if (plan_) {
-        if (plan_number_ != cur_plan_number) {
-          std::cout << "Starting new plan." << std::endl;
-          start_time_us = cur_time_us;
-          cur_plan_number = plan_number_;
-        }
+      iiwa_command.utime = iiwa_status_.utime;
 
-        const double cur_traj_time_s =
-            static_cast<double>(cur_time_us - start_time_us) / 1e6;
-        const auto desired_next = plan_->value(cur_traj_time_s);
-
-        iiwa_command.utime = iiwa_status_.utime;
-
-        for (int joint = 0; joint < kNumJoints; joint++) {
-          // iiwa_command.joint_position[joint] = desired_next(joint);
-          iiwa_command.joint_position[joint] = iiwa_status_.joint_position_measured[joint];
-          iiwa_command.joint_torque[joint] = 0.1;
-        }
-        std::cout << "--------------------------" << std::endl;
-        std::cout << FLAGS_x << " " << FLAGS_y << " " << FLAGS_yaw << std::endl;
-
-        lcm_.publish(kLcmCommandChannel, &iiwa_command);
+      for (int joint = 0; joint < kNumJoints; joint++) {
+        iiwa_command.joint_position[joint] = iiwa_status_.joint_position_measured[joint];
+        iiwa_command.joint_torque[joint] = 0.0;
       }
+      std::cout << "--------------------------" << std::endl;
+      std::cout << FLAGS_x << " " << FLAGS_y << " " << FLAGS_yaw << std::endl;
+
+      lcm_.publish(kLcmCommandChannel, &iiwa_command);
     }
   }
 
