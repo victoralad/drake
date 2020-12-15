@@ -64,6 +64,8 @@ class RobotPlanRunner {
       : plant_(plant) {
     lcm_.subscribe(kLcmStatusChannel,
                     &RobotPlanRunner::HandleStatus, this);
+    end_effector_link_ = &plant_.GetBodyByName("iiwa_link_7");
+    // frame_E_ = end_effector_link_->body_frame();
   }
 
   void Run() {
@@ -98,6 +100,7 @@ class RobotPlanRunner {
 
       SetDynamicParam();
       std::cout << M_ << std::endl;
+      
 
       lcm_.publish(kLcmCommandChannel, &iiwa_command);
     }
@@ -111,6 +114,7 @@ class RobotPlanRunner {
 
   void SetDynamicParam() {
     int nv = plant_.num_velocities();
+    // --------------------- Calculate mass matrix -----------------------
     Eigen::MatrixXd M(nv, nv);
     M_ = M;
     const std::unique_ptr<systems::Context<double>> plant_context = plant_.CreateDefaultContext();
@@ -121,6 +125,8 @@ class RobotPlanRunner {
   const multibody::MultibodyPlant<double>& plant_;
   lcmt_iiwa_status iiwa_status_;
   Eigen::MatrixXd M_; // Mass matrix.
+  const multibody::Body<double>* end_effector_link_{nullptr};
+  const multibody::Frame<double>* frame_E_{nullptr};
 };
 
 int do_main() {
