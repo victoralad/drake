@@ -65,7 +65,8 @@ class RobotPlanRunner {
     lcm_.subscribe(kLcmStatusChannel,
                     &RobotPlanRunner::HandleStatus, this);
     end_effector_link_ = &plant_.GetBodyByName("iiwa_link_7");
-    // frame_E_ = end_effector_link_->body_frame();
+    frame_E_ = &end_effector_link_->body_frame();
+
   }
 
   void Run() {
@@ -99,7 +100,7 @@ class RobotPlanRunner {
       // std::cout << FLAGS_x << " " << FLAGS_y << " " << FLAGS_yaw << std::endl;
 
       SetDynamicParam();
-      std::cout << M_ << std::endl;
+      // std::cout << M_ << std::endl;
       
 
       lcm_.publish(kLcmCommandChannel, &iiwa_command);
@@ -119,6 +120,11 @@ class RobotPlanRunner {
     M_ = M;
     const std::unique_ptr<systems::Context<double>> plant_context = plant_.CreateDefaultContext();
     plant_.CalcMassMatrix(*plant_context, &M_);
+
+    Matrix3X<double> p_FoEi_F(3, 1);
+    Matrix3X<double> p_WoEi_W(3, 1);
+    plant_.CalcPointsPositions(*plant_context, *frame_E_, p_FoEi_F, plant_.world_frame(), &p_WoEi_W);
+    std::cout << p_FoEi_F << std::endl;
   }
 
   ::lcm::LCM lcm_;
@@ -127,6 +133,7 @@ class RobotPlanRunner {
   Eigen::MatrixXd M_; // Mass matrix.
   const multibody::Body<double>* end_effector_link_{nullptr};
   const multibody::Frame<double>* frame_E_{nullptr};
+
 };
 
 int do_main() {
