@@ -64,9 +64,8 @@ class RobotPlanRunner {
       : plant_(plant) {
     lcm_.subscribe(kLcmStatusChannel,
                     &RobotPlanRunner::HandleStatus, this);
-    end_effector_link_ = &plant_.GetBodyByName("iiwa_link_7");
-    frame_E_ = &end_effector_link_->body_frame();
-
+    
+    context_ = plant_.CreateDefaultContext();
   }
 
   void Run() {
@@ -114,25 +113,31 @@ class RobotPlanRunner {
   }
 
   void SetDynamicParam() {
+    Eigen::VectorXd iiwa_q(iiwa_status_.num_joints);
+    for (int i = 0; i < iiwa_status_.num_joints; i++) {
+      iiwa_q[i] = iiwa_status_.joint_position_measured[i];
+    }
+    plant_.SetPositions(context_.get(), iiwa_q);
     int nv = plant_.num_velocities();
+
     // --------------------- Calculate mass matrix -----------------------
     Eigen::MatrixXd M(nv, nv);
     M_ = M;
-    const std::unique_ptr<systems::Context<double>> plant_context = plant_.CreateDefaultContext();
-    plant_.CalcMassMatrix(*plant_context, &M_);
+    plant_.CalcMassMatrix(*context_, &M_);
 
-    Matrix3X<double> p_FoEi_F(3, 1);
-    Matrix3X<double> p_WoEi_W(3, 1);
-    plant_.CalcPointsPositions(*plant_context, *frame_E_, p_FoEi_F, plant_.world_frame(), &p_WoEi_W);
-    std::cout << p_FoEi_F << std::endl;
+    // --------------------- Get end effector pose -----------------------
+    current_link_pose_ = plant_.EvalBodyPoseInWorld(*context_, plant_.GetBodyByName("iiwa_link_7"));
+    // std::cout << current_link_pose_.translation() << std::endl;
+    const math::RollPitchYaw<double> rpy(current_link_pose_.rotation());
+    std::cout << rpy.vector() << std::endl;
   }
 
   ::lcm::LCM lcm_;
   const multibody::MultibodyPlant<double>& plant_;
   lcmt_iiwa_status iiwa_status_;
+  std::unique_ptr<systems::Context<double>> context_;
   Eigen::MatrixXd M_; // Mass matrix.
-  const multibody::Body<double>* end_effector_link_{nullptr};
-  const multibody::Frame<double>* frame_E_{nullptr};
+  math::RigidTransform<double> current_link_pose_;
 
 };
 
