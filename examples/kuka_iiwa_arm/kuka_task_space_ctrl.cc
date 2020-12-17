@@ -66,6 +66,7 @@ class RobotPlanRunner {
                     &RobotPlanRunner::HandleStatus, this);
     
     context_ = plant_.CreateDefaultContext();
+    ee_link_ = "iiwa_link_ee";
   }
 
   void Run() {
@@ -126,7 +127,7 @@ class RobotPlanRunner {
     plant_.CalcMassMatrix(*context_, &M_);
 
     // --------------------- Get end effector pose -----------------------
-    current_link_pose_ = plant_.EvalBodyPoseInWorld(*context_, plant_.GetBodyByName("iiwa_link_7"));
+    current_link_pose_ = plant_.EvalBodyPoseInWorld(*context_, plant_.GetBodyByName(ee_link_));
     // std::cout << current_link_pose_.translation() << std::endl;
     const math::RollPitchYaw<double> rpy(current_link_pose_.rotation());
     std::cout << rpy.vector() << std::endl;
@@ -138,6 +139,7 @@ class RobotPlanRunner {
   std::unique_ptr<systems::Context<double>> context_;
   Eigen::MatrixXd M_; // Mass matrix.
   math::RigidTransform<double> current_link_pose_;
+  std::string ee_link_;
 
 };
 
