@@ -96,8 +96,12 @@ class RobotPlanRunner {
 
       // Compute control torques.
       Eigen::VectorXd cartesian_force = Eigen::VectorXd::Zero(7);
-      std::cout << desired_ee_pose_ - ee_pose_ << std::endl;
       cartesian_force = Kp * (desired_ee_pose_ - ee_pose_) + Kv * (desired_ee_velocity_ - ee_velocity_);
+      
+      std::cout << "desired_ee_pose_    ee_pose_ " << std::endl;
+      for (int i = 0; i < 6; ++i) {
+        std::cout << desired_ee_pose_[i] << "    " << ee_pose_[i] << std::endl;
+      }
 
       Eigen::VectorXd joint_torque_cmd = Eigen::VectorXd::Zero(7);
       joint_torque_cmd = Jq_V_WE_.transpose() * cartesian_force + coriolis_;
@@ -105,7 +109,8 @@ class RobotPlanRunner {
 
       for (int joint = 0; joint < kNumJoints; joint++) {
         iiwa_command.joint_position[joint] = iiwa_status_.joint_position_measured[joint];
-        iiwa_command.joint_torque[joint] = joint_torque_cmd[joint]; // 0.1;
+        iiwa_command.joint_torque[joint] = joint_torque_cmd[joint];
+        // iiwa_command.joint_torque[joint] = 0.0;
       }
       std::cout << "--------------------------" << std::endl;
       
@@ -136,8 +141,10 @@ class RobotPlanRunner {
     desired_ee_velocity_ = Eigen::VectorXd::Zero(task_dim);
     ee_pose_ = Eigen::VectorXd::Zero(task_dim);
     ee_velocity_ = Eigen::VectorXd::Zero(task_dim);
-    Kp = 0.5 * Eigen::MatrixXd::Ones(task_dim, task_dim);
-    Kv = 0.01 * Eigen::MatrixXd::Ones(task_dim, task_dim);
+    Kp = Eigen::MatrixXd::Zero(task_dim, task_dim);
+    Kv = Eigen::MatrixXd::Zero(task_dim, task_dim);
+    Kp << 5.0, 5.0, 5.0, 2.5, 2.5, 2.5;
+    Kv << 0.2, 0.2, 0.2, 0.05, 0.05, 0.05;
     Jq_V_WE_ = Eigen::MatrixXd::Zero(task_dim, nv);
 
   }
