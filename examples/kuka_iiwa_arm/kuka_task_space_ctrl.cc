@@ -94,9 +94,18 @@ class RobotPlanRunner {
 
       iiwa_command.utime = iiwa_status_.utime;
 
+      // Compute control torques.
+      Eigen::VectorXd cartesian_force = Eigen::VectorXd::Zero(7);
+      std::cout << desired_ee_pose_ - ee_pose_ << std::endl;
+      cartesian_force = Kp * (desired_ee_pose_ - ee_pose_) + Kv * (desired_ee_velocity_ - ee_velocity_);
+
+      Eigen::VectorXd joint_torque_cmd = Eigen::VectorXd::Zero(7);
+      joint_torque_cmd = Jq_V_WE_.transpose() * cartesian_force + coriolis_;
+     
+
       for (int joint = 0; joint < kNumJoints; joint++) {
         iiwa_command.joint_position[joint] = iiwa_status_.joint_position_measured[joint];
-        iiwa_command.joint_torque[joint] = 0.0;
+        iiwa_command.joint_torque[joint] = joint_torque_cmd[joint]; // 0.1;
       }
       std::cout << "--------------------------" << std::endl;
       
@@ -115,17 +124,22 @@ class RobotPlanRunner {
     ee_link_ = "iiwa_link_ee";
     frame_E_ = &plant_->GetBodyByName(ee_link_).body_frame();
 
-    Eigen::VectorXd iiwa_q(iiwa_status_.num_joints); // Joint positions.
-    Eigen::VectorXd iiwa_qdot(iiwa_status_.num_joints); // Joint velocities.
-    iiwa_q_ = iiwa_q;
-    iiwa_qdot_ = iiwa_qdot;
+    iiwa_q_ = Eigen::VectorXd::Zero(iiwa_status_.num_joints); // Joint positions.
+    iiwa_qdot_ = Eigen::VectorXd::Zero(iiwa_status_.num_joints); // Joint velocities.
 
     int nv = plant_->num_velocities();
-    // std::cout << "yooo " << nv << std::endl; 
-    Eigen::MatrixXd M(nv, nv);
-    M_ = M;
-    Eigen::VectorXd coriolis(nv);
-    coriolis_ = coriolis;
+    M_ = Eigen::MatrixXd::Zero(nv, nv);
+    coriolis_ = Eigen::VectorXd::Zero(nv);
+
+    int task_dim = 6; // Dimenstion of task space.
+    desired_ee_pose_ = Eigen::VectorXd::Zero(task_dim);
+    desired_ee_velocity_ = Eigen::VectorXd::Zero(task_dim);
+    ee_pose_ = Eigen::VectorXd::Zero(task_dim);
+    ee_velocity_ = Eigen::VectorXd::Zero(task_dim);
+    Kp = 0.5 * Eigen::MatrixXd::Ones(task_dim, task_dim);
+    Kv = 0.01 * Eigen::MatrixXd::Ones(task_dim, task_dim);
+    Jq_V_WE_ = Eigen::MatrixXd::Zero(task_dim, nv);
+
   }
 
   void UpdateDynamicParam() {
@@ -143,12 +157,16 @@ class RobotPlanRunner {
     // Calculate mass matrix.
     plant_->CalcMassMatrix(*context_, &M_);
 
-    // Get end effector pose and velocity.
-    ee_link_pose_ = plant_->EvalBodyPoseInWorld(*context_, plant_->GetBodyByName(ee_link_));
-    ee_link_velocity_ = plant_->EvalBodySpatialVelocityInWorld(*context_, plant_->GetBodyByName(ee_link_));
-    // std::cout << ee_link_pose_.translation() << std::endl;
-    // const math::RollPitchYaw<double> rpy(ee_link_pose_.rotation());
-    // std::cout << rpy.vector() << std::endl;
+    // Get end effector pose.
+    ee_link_pose_obj_ = plant_->EvalBodyPoseInWorld(*context_, plant_->GetBodyByName(ee_link_));
+    ee_pose_.head(3) = ee_link_pose_obj_.translation();
+    const math::RollPitchYaw<double> rpy(ee_link_pose_obj_.rotation());
+    ee_pose_.tail(3) = rpy.vector();
+
+    // Get end effector velocity.
+    ee_link_velocity_obj_ = plant_->EvalBodySpatialVelocityInWorld(*context_, plant_->GetBodyByName(ee_link_));
+    ee_velocity_.head(3) = ee_link_velocity_obj_.translational();
+    ee_velocity_.tail(3) = ee_link_velocity_obj_.rotational();
     
     // Calculate Jacobian.
     Eigen::MatrixXd Jq_V_WE(6, plant_->num_positions());
@@ -161,7 +179,9 @@ class RobotPlanRunner {
 
     // Calculate Coriolis forces.
     plant_->CalcBiasTerm(*context_, &coriolis_);
-    std::cout << coriolis_ << std::endl;
+
+    // Get desired end effector pose (and velocities).
+    desired_ee_pose_ << FLAGS_x, FLAGS_y, FLAGS_z, FLAGS_roll, FLAGS_pitch, FLAGS_yaw;
   }
 
   ::lcm::LCM lcm_;
@@ -169,14 +189,20 @@ class RobotPlanRunner {
   lcmt_iiwa_status iiwa_status_;
   std::unique_ptr<systems::Context<double>> context_;
   Eigen::MatrixXd M_; // Mass matrix.
-  math::RigidTransform<double> ee_link_pose_;
-  multibody::SpatialVelocity<double> ee_link_velocity_;
+  math::RigidTransform<double> ee_link_pose_obj_;
+  multibody::SpatialVelocity<double> ee_link_velocity_obj_;
   std::string ee_link_;
   Eigen::VectorXd iiwa_q_; // Joint positions.
   Eigen::VectorXd iiwa_qdot_; // Joint velocities.
   const multibody::Frame<double>* frame_E_; // End effector frame.
   Eigen::MatrixXd Jq_V_WE_; // Jacobian matrix.
   Eigen::VectorXd coriolis_; // Coriolis vector.
+  Eigen::VectorXd desired_ee_pose_;
+  Eigen::VectorXd desired_ee_velocity_;
+  Eigen::VectorXd ee_pose_;
+  Eigen::VectorXd ee_velocity_;
+  Eigen::MatrixXd Kp; // Stiffness gain matrix.
+  Eigen::MatrixXd Kv; // Damping gain matrix.
 
 };
 
