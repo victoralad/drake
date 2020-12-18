@@ -64,9 +64,9 @@ class RobotPlanRunner {
       : plant_(&plant) {
     lcm_.subscribe(kLcmStatusChannel,
                     &RobotPlanRunner::HandleStatus, this);
-    
-    context_ = plant_->CreateDefaultContext();
-    ee_link_ = "iiwa_link_ee";
+    // Ensure that a status message is received before initializing robot parameters.
+    while (0 == lcm_.handleTimeout(10) || iiwa_status_.utime == -1) { }
+    InitDynamicParam();
   }
 
   void Run() {
@@ -84,6 +84,8 @@ class RobotPlanRunner {
     iiwa_command.joint_torque.resize(kNumJoints, 0.);
 
     while (true) {
+      
+      UpdateDynamicParam();
       // Call lcm handle until at least one status message is
       // processed.
       while (0 == lcm_.handleTimeout(10) || iiwa_status_.utime == -1) { }
@@ -97,12 +99,7 @@ class RobotPlanRunner {
         iiwa_command.joint_torque[joint] = 0.0;
       }
       std::cout << "--------------------------" << std::endl;
-      // std::cout << FLAGS_x << " " << FLAGS_y << " " << FLAGS_yaw << std::endl;
-
-      SetDynamicParam();
-      // std::cout << M_ << std::endl;
       
-
       lcm_.publish(kLcmCommandChannel, &iiwa_command);
     }
   }
@@ -113,24 +110,38 @@ class RobotPlanRunner {
     iiwa_status_ = *status;
   }
 
-  void SetDynamicParam() {
+  void InitDynamicParam() {
+    context_ = plant_->CreateDefaultContext();
+    ee_link_ = "iiwa_link_ee";
+    frame_E_ = &plant_->GetBodyByName(ee_link_).body_frame();
+
     Eigen::VectorXd iiwa_q(iiwa_status_.num_joints); // Joint positions.
     Eigen::VectorXd iiwa_qdot(iiwa_status_.num_joints); // Joint velocities.
     iiwa_q_ = iiwa_q;
     iiwa_qdot_ = iiwa_qdot;
+
+    int nv = plant_->num_velocities();
+    // std::cout << "yooo " << nv << std::endl; 
+    Eigen::MatrixXd M(nv, nv);
+    M_ = M;
+
+    Eigen::MatrixXd Jq_V_WE(6, plant_->num_positions());
+    Jq_V_WE_ = Jq_V_WE;
+  }
+
+  void UpdateDynamicParam() {
+    
     for (int i = 0; i < iiwa_status_.num_joints; i++) {
       iiwa_q_[i] = iiwa_status_.joint_position_measured[i];
       iiwa_qdot_[i] = iiwa_status_.joint_velocity_estimated[i];
     }
-
+    
     // Update context.
     plant_->SetPositions(context_.get(), iiwa_q_);
     plant_->SetVelocities(context_.get(), iiwa_qdot_);
-    int nv = plant_->num_velocities();
+    
 
     // Calculate mass matrix.
-    Eigen::MatrixXd M(nv, nv);
-    M_ = M;
     plant_->CalcMassMatrix(*context_, &M_);
 
     // Get end effector pose and velocity.
@@ -140,6 +151,11 @@ class RobotPlanRunner {
     // const math::RollPitchYaw<double> rpy(ee_link_pose_.rotation());
     // std::cout << rpy.vector() << std::endl;
     
+    // Calculate Jacobian.
+    plant_->CalcJacobianSpatialVelocity(*context_, multibody::JacobianWrtVariable::kQDot,
+                                        *frame_E_, Eigen::Vector3d::Zero() /* p_EQi */, plant_->world_frame(),
+                                        plant_->world_frame(), &Jq_V_WE_);
+
   }
 
   ::lcm::LCM lcm_;
@@ -152,6 +168,8 @@ class RobotPlanRunner {
   std::string ee_link_;
   Eigen::VectorXd iiwa_q_; // Joint positions.
   Eigen::VectorXd iiwa_qdot_; // Joint velocities.
+  const multibody::Frame<double>* frame_E_; // End effector frame.
+  Eigen::MatrixXd Jq_V_WE_; // Jacobian.
 
 };
 
