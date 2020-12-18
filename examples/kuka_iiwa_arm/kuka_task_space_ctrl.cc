@@ -133,8 +133,9 @@ class RobotPlanRunner {
     M_ = M;
     plant_.CalcMassMatrix(*context_, &M_);
 
-    // Get end effector pose.
+    // Get end effector pose and velocity.
     ee_link_pose_ = plant_.EvalBodyPoseInWorld(*context_, plant_.GetBodyByName(ee_link_));
+    ee_link_velocity_ = plant_.EvalBodySpatialVelocityInWorld(*context_, plant_.GetBodyByName(ee_link_));
     // std::cout << ee_link_pose_.translation() << std::endl;
     // const math::RollPitchYaw<double> rpy(ee_link_pose_.rotation());
     // std::cout << rpy.vector() << std::endl;
@@ -147,6 +148,7 @@ class RobotPlanRunner {
   std::unique_ptr<systems::Context<double>> context_;
   Eigen::MatrixXd M_; // Mass matrix.
   math::RigidTransform<double> ee_link_pose_;
+  multibody::SpatialVelocity<double> ee_link_velocity_;
   std::string ee_link_;
   Eigen::VectorXd iiwa_q_; // Joint positions.
   Eigen::VectorXd iiwa_qdot_; // Joint velocities.
