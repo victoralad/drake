@@ -98,9 +98,9 @@ class RobotPlanRunner {
       Eigen::VectorXd cartesian_force = Eigen::VectorXd::Zero(7);
       cartesian_force = Kp * (desired_ee_pose_ - ee_pose_) + Kv * (desired_ee_velocity_ - ee_velocity_);
       
-      std::cout << "desired_ee_pose_    ee_pose_ " << std::endl;
+      std::cout << "desired   actual " << std::endl;
       for (int i = 0; i < 6; ++i) {
-        std::cout << desired_ee_pose_[i] << "    " << ee_pose_[i] << std::endl;
+        std::cout << desired_ee_pose_[i] << "      " << ee_pose_[i] << std::endl;
       }
 
       Eigen::VectorXd joint_torque_cmd = Eigen::VectorXd::Zero(7);
@@ -126,7 +126,7 @@ class RobotPlanRunner {
 
   void InitDynamicParam() {
     context_ = plant_->CreateDefaultContext();
-    ee_link_ = "iiwa_link_ee";
+    ee_link_ = "iiwa_link_7";
     frame_E_ = &plant_->GetBodyByName(ee_link_).body_frame();
 
     iiwa_q_ = Eigen::VectorXd::Zero(iiwa_status_.num_joints); // Joint positions.
@@ -216,10 +216,10 @@ class RobotPlanRunner {
 int do_main() {
   multibody::MultibodyPlant<double> plant(0.0);
   multibody::Parser(&plant).AddModelFromFile(
-      FindResourceOrThrow("drake/manipulation/models/iiwa_description/urdf/"
-                          "iiwa14_no_collision.urdf"));
+      FindResourceOrThrow("drake/manipulation/models/iiwa_description/iiwa7/"
+                          "iiwa7_with_box_collision.sdf"));
   plant.WeldFrames(plant.world_frame(),
-                   plant.GetBodyByName("base").body_frame());
+                   plant.GetBodyByName("iiwa_link_0").body_frame());
   plant.Finalize();
 
   RobotPlanRunner runner(plant);
