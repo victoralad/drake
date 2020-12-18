@@ -60,13 +60,13 @@ typedef PPType::PolynomialMatrix PPMatrix;
 class RobotPlanRunner {
  public:
   /// plant is aliased
-  explicit RobotPlanRunner(const multibody::MultibodyPlant<double>& plant)
-      : plant_(plant) {
+  explicit RobotPlanRunner(multibody::MultibodyPlant<double>& plant)
+      : plant_(&plant) {
     lcm_.subscribe(kLcmStatusChannel,
                     &RobotPlanRunner::HandleStatus, this);
     
-    context_ = plant_.CreateDefaultContext();
-    ee_link_ = "iiwa_link_7";
+    context_ = plant_->CreateDefaultContext();
+    ee_link_ = "iiwa_link_ee";
   }
 
   void Run() {
@@ -124,18 +124,18 @@ class RobotPlanRunner {
     }
 
     // Update context.
-    plant_.SetPositions(context_.get(), iiwa_q_);
-    plant_.SetVelocities(context_.get(), iiwa_qdot_);
-    int nv = plant_.num_velocities();
+    plant_->SetPositions(context_.get(), iiwa_q_);
+    plant_->SetVelocities(context_.get(), iiwa_qdot_);
+    int nv = plant_->num_velocities();
 
     // Calculate mass matrix.
     Eigen::MatrixXd M(nv, nv);
     M_ = M;
-    plant_.CalcMassMatrix(*context_, &M_);
+    plant_->CalcMassMatrix(*context_, &M_);
 
     // Get end effector pose and velocity.
-    ee_link_pose_ = plant_.EvalBodyPoseInWorld(*context_, plant_.GetBodyByName(ee_link_));
-    ee_link_velocity_ = plant_.EvalBodySpatialVelocityInWorld(*context_, plant_.GetBodyByName(ee_link_));
+    ee_link_pose_ = plant_->EvalBodyPoseInWorld(*context_, plant_->GetBodyByName(ee_link_));
+    ee_link_velocity_ = plant_->EvalBodySpatialVelocityInWorld(*context_, plant_->GetBodyByName(ee_link_));
     // std::cout << ee_link_pose_.translation() << std::endl;
     // const math::RollPitchYaw<double> rpy(ee_link_pose_.rotation());
     // std::cout << rpy.vector() << std::endl;
@@ -143,7 +143,7 @@ class RobotPlanRunner {
   }
 
   ::lcm::LCM lcm_;
-  const multibody::MultibodyPlant<double>& plant_;
+  const multibody::MultibodyPlant<double>* plant_;
   lcmt_iiwa_status iiwa_status_;
   std::unique_ptr<systems::Context<double>> context_;
   Eigen::MatrixXd M_; // Mass matrix.
