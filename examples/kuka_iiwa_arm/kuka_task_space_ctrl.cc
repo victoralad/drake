@@ -66,7 +66,7 @@ class RobotPlanRunner {
                     &RobotPlanRunner::HandleStatus, this);
     
     context_ = plant_.CreateDefaultContext();
-    ee_link_ = "iiwa_link_ee";
+    ee_link_ = "iiwa_link_7";
   }
 
   void Run() {
@@ -114,23 +114,31 @@ class RobotPlanRunner {
   }
 
   void SetDynamicParam() {
-    Eigen::VectorXd iiwa_q(iiwa_status_.num_joints);
+    Eigen::VectorXd iiwa_q(iiwa_status_.num_joints); // Joint positions.
+    Eigen::VectorXd iiwa_qdot(iiwa_status_.num_joints); // Joint velocities.
+    iiwa_q_ = iiwa_q;
+    iiwa_qdot_ = iiwa_qdot;
     for (int i = 0; i < iiwa_status_.num_joints; i++) {
-      iiwa_q[i] = iiwa_status_.joint_position_measured[i];
+      iiwa_q_[i] = iiwa_status_.joint_position_measured[i];
+      iiwa_qdot_[i] = iiwa_status_.joint_velocity_estimated[i];
     }
-    plant_.SetPositions(context_.get(), iiwa_q);
+
+    // Update context.
+    plant_.SetPositions(context_.get(), iiwa_q_);
+    plant_.SetVelocities(context_.get(), iiwa_qdot_);
     int nv = plant_.num_velocities();
 
-    // --------------------- Calculate mass matrix -----------------------
+    // Calculate mass matrix.
     Eigen::MatrixXd M(nv, nv);
     M_ = M;
     plant_.CalcMassMatrix(*context_, &M_);
 
-    // --------------------- Get end effector pose -----------------------
-    current_link_pose_ = plant_.EvalBodyPoseInWorld(*context_, plant_.GetBodyByName(ee_link_));
-    // std::cout << current_link_pose_.translation() << std::endl;
-    const math::RollPitchYaw<double> rpy(current_link_pose_.rotation());
-    std::cout << rpy.vector() << std::endl;
+    // Get end effector pose.
+    ee_link_pose_ = plant_.EvalBodyPoseInWorld(*context_, plant_.GetBodyByName(ee_link_));
+    // std::cout << ee_link_pose_.translation() << std::endl;
+    // const math::RollPitchYaw<double> rpy(ee_link_pose_.rotation());
+    // std::cout << rpy.vector() << std::endl;
+    
   }
 
   ::lcm::LCM lcm_;
@@ -138,8 +146,10 @@ class RobotPlanRunner {
   lcmt_iiwa_status iiwa_status_;
   std::unique_ptr<systems::Context<double>> context_;
   Eigen::MatrixXd M_; // Mass matrix.
-  math::RigidTransform<double> current_link_pose_;
+  math::RigidTransform<double> ee_link_pose_;
   std::string ee_link_;
+  Eigen::VectorXd iiwa_q_; // Joint positions.
+  Eigen::VectorXd iiwa_qdot_; // Joint velocities.
 
 };
 
