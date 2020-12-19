@@ -60,13 +60,14 @@ typedef PPType::PolynomialMatrix PPMatrix;
 class RobotPlanRunner {
  public:
   /// plant is aliased
-  explicit RobotPlanRunner(multibody::MultibodyPlant<double>& plant)
-      : plant_(&plant) {
+  explicit RobotPlanRunner(multibody::MultibodyPlant<double>& plant, const multibody::ModelInstanceIndex iiwa_instance)
+      : plant_(&plant), iiwa_instance_(iiwa_instance) {
     lcm_.subscribe(kLcmStatusChannel,
                     &RobotPlanRunner::HandleStatus, this);
     // Ensure that a status message is received before initializing robot parameters.
     while (0 == lcm_.handleTimeout(10) || iiwa_status_.utime == -1) { }
     InitDynamicParam();
+    std::cout << "aaaaaaaaaaaaaaa" << std::endl;
   }
 
   void Run() {
@@ -157,8 +158,8 @@ class RobotPlanRunner {
     }
     
     // Update context.
-    plant_->SetPositions(context_.get(), iiwa_q_);
-    plant_->SetVelocities(context_.get(), iiwa_qdot_);
+    plant_->SetPositions(context_.get(), iiwa_instance_, iiwa_q_);
+    plant_->SetVelocities(context_.get(), iiwa_instance_, iiwa_qdot_);
     
 
     // Calculate mass matrix.
@@ -210,19 +211,34 @@ class RobotPlanRunner {
   Eigen::VectorXd ee_velocity_;
   Eigen::MatrixXd Kp; // Stiffness gain matrix.
   Eigen::MatrixXd Kv; // Damping gain matrix.
+  const multibody::ModelInstanceIndex iiwa_instance_; // Arm instance (does not include the gripper).
 
 };
 
 int do_main() {
   multibody::MultibodyPlant<double> plant(0.0);
-  multibody::Parser(&plant).AddModelFromFile(
+  auto iiwa_instance = multibody::Parser(&plant).AddModelFromFile(
       FindResourceOrThrow("drake/manipulation/models/iiwa_description/iiwa7/"
                           "iiwa7_with_box_collision.sdf"));
   plant.WeldFrames(plant.world_frame(),
                    plant.GetBodyByName("iiwa_link_0").body_frame());
+  
+  // ------------------------- Add gripper --------------------------------------
+  std::string sdf_path_shunk = FindResourceOrThrow(
+          "drake/manipulation/models/wsg_50_description/sdf"
+          "/schunk_wsg_50_with_tip.sdf");
+  const multibody::Frame<double>& iiwa_link7 = plant.GetBodyByName("iiwa_link_7").body_frame();
+  const math::RigidTransform<double> X_7G(math::RollPitchYaw<double>(M_PI_2, 0, M_PI_2),
+                                    Vector3d(0, 0, 0.075));
+  const multibody::ModelInstanceIndex new_model =
+      multibody::Parser(&plant).AddModelFromFile(sdf_path_shunk, "gripper");
+  const auto& child_frame = plant.GetFrameByName("body", new_model);
+  plant.WeldFrames(iiwa_link7, child_frame, X_7G);
+  // ----------------------------------------------------------------------------
+
   plant.Finalize();
 
-  RobotPlanRunner runner(plant);
+  RobotPlanRunner runner(plant, iiwa_instance);
   runner.Run();
   return 0;
 }

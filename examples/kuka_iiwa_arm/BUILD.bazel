@@ -145,6 +145,7 @@ drake_cc_binary(
     data = [
         ":models",
         "//manipulation/models/iiwa_description:models",
+        "//manipulation/models/wsg_50_description:models",
     ],
     deps = [
         "//common:add_text_logging_gflags",
