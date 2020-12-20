@@ -108,9 +108,6 @@ class RobotPlanRunner {
       // Compute control torques.
       Eigen::VectorXd cartesian_force = Eigen::VectorXd::Zero(7);
       cartesian_force = Kp_ * error_ee_pose + Kv_ * error_velocity;
-      cartesian_force[3] = 0.0;
-      cartesian_force[4] = 0.0;
-      cartesian_force[5] = 0.0;
       
       std::cout << "desired   actual " << std::endl;
       for (int i = 0; i < 6; ++i) {
@@ -156,11 +153,15 @@ class RobotPlanRunner {
     desired_ee_velocity_ = Eigen::VectorXd::Zero(task_dim);
     ee_pose_ = Eigen::VectorXd::Zero(task_dim);
     ee_velocity_ = Eigen::VectorXd::Zero(task_dim);
-    Kp_ = 0.5 * Eigen::MatrixXd::Identity(task_dim, task_dim);
-    Kv_ = 0.1 * Eigen::MatrixXd::Identity(task_dim, task_dim);
-    // Kp << 5.0, 5.0, 5.0, 2.5, 2.5, 2.5;
-    // Kv << 0.2, 0.2, 0.2, 0.05, 0.05, 0.05;
     Jq_V_WE_ = Eigen::MatrixXd::Zero(task_dim, nv);
+    Kp_ = Eigen::MatrixXd::Identity(task_dim, task_dim);
+    Kv_ = Eigen::MatrixXd::Identity(task_dim, task_dim);
+    for (int i = 0; i < 3; i++) {
+      Kp_(i, i) = 15.0;
+      Kp_(i+3, i+3) = 1.5;
+      Kv_(i, i) = 2.0;
+      Kv_(i+3, i+3) = 0.2;
+    }
 
   }
 
@@ -184,6 +185,9 @@ class RobotPlanRunner {
     ee_pose_.head(3) = ee_link_pose_obj_.translation();
     const math::RollPitchYaw<double> rpy(ee_link_pose_obj_.rotation());
     ee_pose_.tail(3) = rpy.vector();
+    // ee_pose_[3] = rpy.vector()[2];
+    // ee_pose_[4] = rpy.vector()[1];
+    // ee_pose_[5] = rpy.vector()[0];
 
     // Get end effector velocity.
     ee_link_velocity_obj_ = plant_->EvalBodySpatialVelocityInWorld(*context_, plant_->GetBodyByName(ee_link_));
