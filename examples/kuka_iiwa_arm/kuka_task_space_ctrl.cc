@@ -98,15 +98,8 @@ class RobotPlanRunner {
       Eigen::VectorXd error_ee_pose = desired_ee_pose_ - ee_pose_;
       Eigen::VectorXd error_velocity = desired_ee_velocity_ - ee_velocity_;
 
-      // // subroutine to handle situations where joint angles cross PI or -PI
-      // double C_PI = 3.14159265359;
-      // for(int i = 3; i < 6; ++i)
-      // {
-      //   error_ee_pose[i] = fmod(error_ee_pose[i] + C_PI + 2*C_PI, 2*C_PI) - C_PI;
-      // }
-
       // Compute control torques.
-      Eigen::VectorXd cartesian_force = Eigen::VectorXd::Zero(7);
+      Eigen::VectorXd cartesian_force = Eigen::VectorXd::Zero(6);
       cartesian_force = Kp_ * error_ee_pose + Kv_ * error_velocity;
       
       std::cout << "desired   actual " << std::endl;
@@ -160,7 +153,7 @@ class RobotPlanRunner {
       Kp_(i, i) = 15.0;
       Kp_(i+3, i+3) = 1.5;
       Kv_(i, i) = 2.0;
-      Kv_(i+3, i+3) = 0.2;
+      Kv_(i+3, i+3) = 0.5;
     }
 
   }
