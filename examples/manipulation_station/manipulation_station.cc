@@ -492,6 +492,7 @@ void ManipulationStation<T>::Finalize(
       // Set the initial positions of the IIWA to a comfortable configuration
       // inside the workspace of the station.
       q0_iiwa << 0, 0.6, 0, -1.75, 0, 1.0, 0;
+      // q0_iiwa << 0, 0, 0, 0, 0, 0, 0;
 
       std::uniform_real_distribution<symbolic::Expression> x(0.4, 0.65),
           y(-0.35, 0.35), z(0, 0.05);

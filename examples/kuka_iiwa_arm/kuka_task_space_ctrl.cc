@@ -67,7 +67,6 @@ class RobotPlanRunner {
     // Ensure that a status message is received before initializing robot parameters.
     while (0 == lcm_.handleTimeout(10) || iiwa_status_.utime == -1) { }
     InitDynamicParam();
-    std::cout << "aaaaaaaaaaaaaaa" << std::endl;
   }
 
   void Run() {
@@ -95,9 +94,23 @@ class RobotPlanRunner {
 
       iiwa_command.utime = iiwa_status_.utime;
 
+      // Compute pose and velocity errors.
+      Eigen::VectorXd error_ee_pose = desired_ee_pose_ - ee_pose_;
+      Eigen::VectorXd error_velocity = desired_ee_velocity_ - ee_velocity_;
+
+      // // subroutine to handle situations where joint angles cross PI or -PI
+      // double C_PI = 3.14159265359;
+      // for(int i = 3; i < 6; ++i)
+      // {
+      //   error_ee_pose[i] = fmod(error_ee_pose[i] + C_PI + 2*C_PI, 2*C_PI) - C_PI;
+      // }
+
       // Compute control torques.
       Eigen::VectorXd cartesian_force = Eigen::VectorXd::Zero(7);
-      cartesian_force = Kp * (desired_ee_pose_ - ee_pose_) + Kv * (desired_ee_velocity_ - ee_velocity_);
+      cartesian_force = Kp_ * error_ee_pose + Kv_ * error_velocity;
+      cartesian_force[3] = 0.0;
+      cartesian_force[4] = 0.0;
+      cartesian_force[5] = 0.0;
       
       std::cout << "desired   actual " << std::endl;
       for (int i = 0; i < 6; ++i) {
@@ -114,6 +127,7 @@ class RobotPlanRunner {
         // iiwa_command.joint_torque[joint] = 0.0;
       }
       std::cout << "--------------------------" << std::endl;
+      // std::cout << Kp_ << std::endl;
       
       lcm_.publish(kLcmCommandChannel, &iiwa_command);
     }
@@ -142,10 +156,10 @@ class RobotPlanRunner {
     desired_ee_velocity_ = Eigen::VectorXd::Zero(task_dim);
     ee_pose_ = Eigen::VectorXd::Zero(task_dim);
     ee_velocity_ = Eigen::VectorXd::Zero(task_dim);
-    Kp = Eigen::MatrixXd::Zero(task_dim, task_dim);
-    Kv = Eigen::MatrixXd::Zero(task_dim, task_dim);
-    Kp << 5.0, 5.0, 5.0, 2.5, 2.5, 2.5;
-    Kv << 0.2, 0.2, 0.2, 0.05, 0.05, 0.05;
+    Kp_ = 0.5 * Eigen::MatrixXd::Identity(task_dim, task_dim);
+    Kv_ = 0.1 * Eigen::MatrixXd::Identity(task_dim, task_dim);
+    // Kp << 5.0, 5.0, 5.0, 2.5, 2.5, 2.5;
+    // Kv << 0.2, 0.2, 0.2, 0.05, 0.05, 0.05;
     Jq_V_WE_ = Eigen::MatrixXd::Zero(task_dim, nv);
 
   }
@@ -209,8 +223,8 @@ class RobotPlanRunner {
   Eigen::VectorXd desired_ee_velocity_;
   Eigen::VectorXd ee_pose_;
   Eigen::VectorXd ee_velocity_;
-  Eigen::MatrixXd Kp; // Stiffness gain matrix.
-  Eigen::MatrixXd Kv; // Damping gain matrix.
+  Eigen::MatrixXd Kp_; // Stiffness gain matrix.
+  Eigen::MatrixXd Kv_; // Damping gain matrix.
   const multibody::ModelInstanceIndex iiwa_instance_; // Arm instance (does not include the gripper).
 
 };
