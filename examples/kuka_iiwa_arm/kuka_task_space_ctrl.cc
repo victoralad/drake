@@ -64,14 +64,19 @@ class RobotPlanRunner {
       : plant_(&plant), iiwa_instance_(iiwa_instance) {
     lcm_.subscribe(kLcmStatusChannel,
                     &RobotPlanRunner::HandleStatus, this);
+    lcm_.subscribe(kLcmPlanChannel,
+                    &RobotPlanRunner::HandlePlan, this);
+    lcm_.subscribe(kLcmStopChannel,
+                    &RobotPlanRunner::HandleStop, this);
     // Ensure that a status message is received before initializing robot parameters.
     while (0 == lcm_.handleTimeout(10) || iiwa_status_.utime == -1) { }
     InitDynamicParam();
   }
 
   void Run() {
+    int cur_plan_number = plan_number_;
     int64_t cur_time_us = -1;
-    // int64_t start_time_us = -1;
+    int64_t start_time_us = -1;
 
     // Initialize the timestamp to an invalid number so we can detect
     // the first message.
@@ -92,34 +97,60 @@ class RobotPlanRunner {
 
       cur_time_us = iiwa_status_.utime;
 
-      iiwa_command.utime = iiwa_status_.utime;
+      if (plan_) {
+        if (plan_number_ != cur_plan_number) {
+          std::cout << "Starting new plan." << std::endl;
+          start_time_us = cur_time_us;
+          cur_plan_number = plan_number_;
+        }
 
-      // Compute pose and velocity errors.
-      Eigen::VectorXd error_ee_pose = desired_ee_pose_ - ee_pose_;
-      Eigen::VectorXd error_velocity = desired_ee_velocity_ - ee_velocity_;
+        const double cur_traj_time_s =
+            static_cast<double>(cur_time_us - start_time_us) / 1e6;
+        const auto desired_next = plan_->value(cur_traj_time_s);
 
-      // Compute control torques.
-      Eigen::VectorXd cartesian_force = Eigen::VectorXd::Zero(6);
-      cartesian_force = Kp_ * error_ee_pose + Kv_ * error_velocity;
+        iiwa_command.utime = iiwa_status_.utime;
+
+        std::unique_ptr<systems::Context<double>> plan_context = plant_->CreateDefaultContext();
+        Eigen::VectorXd iiwa_q = Eigen::VectorXd::Zero(7);
+        for (int joint = 0; joint < kNumJoints; joint++) {
+          iiwa_q[joint] = desired_next(joint);
+        }
+        plant_->SetPositions(plan_context.get(), iiwa_instance_, iiwa_q);
+        // Get intermediate end effector goal pose.
+        ee_link_pose_obj_ = plant_->EvalBodyPoseInWorld(*plan_context, plant_->GetBodyByName(ee_link_));
+        desired_ee_pose_.head(3) = ee_link_pose_obj_.translation();
+        const math::RollPitchYaw<double> rpy(ee_link_pose_obj_.rotation());
+        desired_ee_pose_.tail(3) = rpy.vector();
+
+        // Compute pose and velocity errors.
+        Eigen::VectorXd error_ee_pose = desired_ee_pose_ - ee_pose_;
+        Eigen::VectorXd error_velocity = desired_ee_velocity_ - ee_velocity_;
+
+        // Compute control torques.
+        Eigen::VectorXd cartesian_force = Eigen::VectorXd::Zero(6);
+        cartesian_force = Kp_ * error_ee_pose + Kv_ * error_velocity;
+        
+        std::cout << "desired   actual " << std::endl;
+        for (int i = 0; i < 6; ++i) {
+          std::cout << desired_ee_pose_[i] << "      " << ee_pose_[i] << std::endl;
+        }
+
+        Eigen::VectorXd joint_torque_cmd = Eigen::VectorXd::Zero(7);
+        joint_torque_cmd = Jq_V_WE_.transpose() * cartesian_force + coriolis_;
       
-      std::cout << "desired   actual " << std::endl;
-      for (int i = 0; i < 6; ++i) {
-        std::cout << desired_ee_pose_[i] << "      " << ee_pose_[i] << std::endl;
-      }
 
-      Eigen::VectorXd joint_torque_cmd = Eigen::VectorXd::Zero(7);
-      joint_torque_cmd = Jq_V_WE_.transpose() * cartesian_force + coriolis_;
-     
+        for (int joint = 0; joint < kNumJoints; joint++) {
+          iiwa_command.joint_position[joint] = iiwa_status_.joint_position_measured[joint];
+          iiwa_command.joint_torque[joint] = joint_torque_cmd[joint];
+          // iiwa_command.joint_torque[joint] = 0.0;
+        }
+        std::cout << "--------------------------" << std::endl;
+        // std::cout << Kp_ << std::endl;
 
-      for (int joint = 0; joint < kNumJoints; joint++) {
-        iiwa_command.joint_position[joint] = iiwa_status_.joint_position_measured[joint];
-        iiwa_command.joint_torque[joint] = joint_torque_cmd[joint];
-        // iiwa_command.joint_torque[joint] = 0.0;
+        
+        
+        lcm_.publish(kLcmCommandChannel, &iiwa_command);
       }
-      std::cout << "--------------------------" << std::endl;
-      // std::cout << Kp_ << std::endl;
-      
-      lcm_.publish(kLcmCommandChannel, &iiwa_command);
     }
   }
 
@@ -127,6 +158,66 @@ class RobotPlanRunner {
   void HandleStatus(const ::lcm::ReceiveBuffer*, const std::string&,
                     const lcmt_iiwa_status* status) {
     iiwa_status_ = *status;
+  }
+
+  void HandlePlan(const ::lcm::ReceiveBuffer*, const std::string&,
+                  const robotlocomotion::robot_plan_t* plan) {
+    std::cout << "New plan received." << std::endl;
+    if (iiwa_status_.utime == -1) {
+      std::cout << "Discarding plan, no status message received yet"
+                << std::endl;
+      return;
+    } else if (plan->num_states < 2) {
+      std::cout << "Discarding plan, Not enough knot points." << std::endl;
+      return;
+    }
+
+    std::vector<Eigen::MatrixXd> knots(plan->num_states,
+                                       Eigen::MatrixXd::Zero(kNumJoints, 1));
+    for (int i = 0; i < plan->num_states; ++i) {
+      const auto& state = plan->plan[i];
+      for (int j = 0; j < state.num_joints; ++j) {
+        if (!plant_->HasJointNamed(state.joint_name[j])) {
+          continue;
+        }
+        const multibody::Joint<double>& joint =
+            plant_->GetJointByName(state.joint_name[j]);
+        DRAKE_DEMAND(joint.num_positions() == 1);
+        const int idx = joint.position_start();
+        DRAKE_DEMAND(idx < kNumJoints);
+
+        // Treat the matrix at knots[i] as a column vector.
+        if (i == 0) {
+          // Always start moving from the position which we're
+          // currently commanding.
+          DRAKE_DEMAND(iiwa_status_.utime != -1);
+          knots[0](idx, 0) = iiwa_status_.joint_position_commanded[j];
+
+        } else {
+          knots[i](idx, 0) = state.joint_position[j];
+        }
+      }
+    }
+
+    for (int i = 0; i < plan->num_states; ++i) {
+      std::cout << knots[i] << std::endl;
+    }
+
+    std::vector<double> input_time;
+    for (int k = 0; k < static_cast<int>(plan->plan.size()); ++k) {
+      input_time.push_back(plan->plan[k].utime / 1e6);
+    }
+    const Eigen::MatrixXd knot_dot = Eigen::MatrixXd::Zero(kNumJoints, 1);
+    plan_.reset(new PiecewisePolynomial<double>(
+        PiecewisePolynomial<double>::CubicWithContinuousSecondDerivatives(
+            input_time, knots, knot_dot, knot_dot)));
+    ++plan_number_;
+  }
+
+  void HandleStop(const ::lcm::ReceiveBuffer*, const std::string&,
+                  const robotlocomotion::robot_plan_t*) {
+    std::cout << "Received stop command. Discarding plan." << std::endl;
+    plan_.reset();
   }
 
   void InitDynamicParam() {
@@ -223,6 +314,8 @@ class RobotPlanRunner {
   Eigen::MatrixXd Kp_; // Stiffness gain matrix.
   Eigen::MatrixXd Kv_; // Damping gain matrix.
   const multibody::ModelInstanceIndex iiwa_instance_; // Arm instance (does not include the gripper).
+  int plan_number_{};
+  std::unique_ptr<PiecewisePolynomial<double>> plan_;
 
 };
 
