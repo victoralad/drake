@@ -27,7 +27,7 @@ DEFINE_double(z, 0., "z coordinate to move to");
 DEFINE_double(roll, 0., "target roll about world x axis for end effector");
 DEFINE_double(pitch, 0., "target pitch about world y axis for end effector");
 DEFINE_double(yaw, 0., "target yaw about world z axis for end effector");
-DEFINE_string(ee_name, "iiwa_link_ee", "Name of the end effector link");
+DEFINE_string(ee_name, "iiwa_link_7", "Name of the end effector link");
 
 namespace drake {
 namespace examples {
@@ -37,8 +37,8 @@ namespace {
 using manipulation::util::MoveIkDemoBase;
 
 const char kIiwaUrdf[] =
-    "drake/manipulation/models/iiwa_description/urdf/"
-    "iiwa14_polytope_collision.urdf";
+    "drake/manipulation/models/iiwa_description/iiwa7/"
+                          "iiwa7_with_box_collision.sdf";
 
 int DoMain() {
   math::RigidTransformd pose(
@@ -47,7 +47,7 @@ int DoMain() {
 
   MoveIkDemoBase demo(
       !FLAGS_urdf.empty() ? FLAGS_urdf : FindResourceOrThrow(kIiwaUrdf),
-      "base", FLAGS_ee_name, 100);
+      "iiwa_link_0", FLAGS_ee_name, 100);
   demo.set_joint_velocity_limits(get_iiwa_max_joint_velocities());
 
   ::lcm::LCM lc;

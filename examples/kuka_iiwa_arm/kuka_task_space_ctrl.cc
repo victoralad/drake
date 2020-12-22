@@ -110,16 +110,17 @@ class RobotPlanRunner {
 
         iiwa_command.utime = iiwa_status_.utime;
 
-        std::unique_ptr<systems::Context<double>> plan_context = plant_->CreateDefaultContext();
+        const multibody::MultibodyPlant<double>* plant = plant_;
+        std::unique_ptr<systems::Context<double>> plan_context = plant->CreateDefaultContext();
         Eigen::VectorXd iiwa_q = Eigen::VectorXd::Zero(7);
         for (int joint = 0; joint < kNumJoints; joint++) {
           iiwa_q[joint] = desired_next(joint);
         }
-        plant_->SetPositions(plan_context.get(), iiwa_instance_, iiwa_q);
+        plant->SetPositions(plan_context.get(), iiwa_instance_, iiwa_q);
         // Get intermediate end effector goal pose.
-        ee_link_pose_obj_ = plant_->EvalBodyPoseInWorld(*plan_context, plant_->GetBodyByName(ee_link_));
-        desired_ee_pose_.head(3) = ee_link_pose_obj_.translation();
-        const math::RollPitchYaw<double> rpy(ee_link_pose_obj_.rotation());
+        math::RigidTransform<double> ee_link_pose_obj = plant->EvalBodyPoseInWorld(*plan_context, plant->GetBodyByName(ee_link_));
+        desired_ee_pose_.head(3) = ee_link_pose_obj.translation();
+        const math::RollPitchYaw<double> rpy(ee_link_pose_obj.rotation());
         desired_ee_pose_.tail(3) = rpy.vector();
 
         // Compute pose and velocity errors.
@@ -269,9 +270,6 @@ class RobotPlanRunner {
     ee_pose_.head(3) = ee_link_pose_obj_.translation();
     const math::RollPitchYaw<double> rpy(ee_link_pose_obj_.rotation());
     ee_pose_.tail(3) = rpy.vector();
-    // ee_pose_[3] = rpy.vector()[2];
-    // ee_pose_[4] = rpy.vector()[1];
-    // ee_pose_[5] = rpy.vector()[0];
 
     // Get end effector velocity.
     ee_link_velocity_obj_ = plant_->EvalBodySpatialVelocityInWorld(*context_, plant_->GetBodyByName(ee_link_));
@@ -289,9 +287,7 @@ class RobotPlanRunner {
 
     // Calculate Coriolis forces.
     plant_->CalcBiasTerm(*context_, &coriolis_);
-
-    // Get desired end effector pose (and velocities).
-    desired_ee_pose_ << FLAGS_x, FLAGS_y, FLAGS_z, FLAGS_roll, FLAGS_pitch, FLAGS_yaw;
+    
   }
 
   ::lcm::LCM lcm_;
