@@ -104,24 +104,7 @@ class RobotPlanRunner {
           cur_plan_number = plan_number_;
         }
 
-        const double cur_traj_time_s =
-            static_cast<double>(cur_time_us - start_time_us) / 1e6;
-        const auto desired_next = plan_->value(cur_traj_time_s);
-
-        iiwa_command.utime = iiwa_status_.utime;
-
-        const multibody::MultibodyPlant<double>* plant = plant_;
-        std::unique_ptr<systems::Context<double>> plan_context = plant->CreateDefaultContext();
-        Eigen::VectorXd iiwa_q = Eigen::VectorXd::Zero(7);
-        for (int joint = 0; joint < kNumJoints; joint++) {
-          iiwa_q[joint] = desired_next(joint);
-        }
-        plant->SetPositions(plan_context.get(), iiwa_instance_, iiwa_q);
-        // Get intermediate end effector goal pose.
-        math::RigidTransform<double> ee_link_pose_obj = plant->EvalBodyPoseInWorld(*plan_context, plant->GetBodyByName(ee_link_));
-        desired_ee_pose_.head(3) = ee_link_pose_obj.translation();
-        const math::RollPitchYaw<double> rpy(ee_link_pose_obj.rotation());
-        desired_ee_pose_.tail(3) = rpy.vector();
+        GetDesiredEEPose(start_time_us, cur_time_us);
 
         // Compute pose and velocity errors.
         Eigen::VectorXd error_ee_pose = desired_ee_pose_ - ee_pose_;
@@ -139,6 +122,7 @@ class RobotPlanRunner {
         Eigen::VectorXd joint_torque_cmd = Eigen::VectorXd::Zero(7);
         joint_torque_cmd = Jq_V_WE_.transpose() * cartesian_force + coriolis_;
       
+        iiwa_command.utime = iiwa_status_.utime;
 
         for (int joint = 0; joint < kNumJoints; joint++) {
           iiwa_command.joint_position[joint] = iiwa_status_.joint_position_measured[joint];
@@ -235,6 +219,7 @@ class RobotPlanRunner {
 
     int task_dim = 6; // Dimenstion of task space.
     desired_ee_pose_ = Eigen::VectorXd::Zero(task_dim);
+    desired_ee_pose_[2] = 1.0; // This is set so that if all else fails, robot tries to move the EE to a feasible pose.
     desired_ee_velocity_ = Eigen::VectorXd::Zero(task_dim);
     ee_pose_ = Eigen::VectorXd::Zero(task_dim);
     ee_velocity_ = Eigen::VectorXd::Zero(task_dim);
@@ -248,6 +233,25 @@ class RobotPlanRunner {
       Kv_(i+3, i+3) = 0.5;
     }
 
+  }
+
+  void GetDesiredEEPose(int64_t start_time_us, int64_t cur_time_us) {
+    const double cur_traj_time_s =
+        static_cast<double>(cur_time_us - start_time_us) / 1e6;
+    const auto desired_next = plan_->value(cur_traj_time_s);
+
+    const multibody::MultibodyPlant<double>* plant = plant_;
+    std::unique_ptr<systems::Context<double>> plan_context = plant->CreateDefaultContext();
+    Eigen::VectorXd iiwa_q = Eigen::VectorXd::Zero(7);
+    for (int joint = 0; joint < kNumJoints; joint++) {
+      iiwa_q[joint] = desired_next(joint);
+    }
+    plant->SetPositions(plan_context.get(), iiwa_instance_, iiwa_q);
+    // Get intermediate end effector goal pose.
+    math::RigidTransform<double> ee_link_pose_obj = plant->EvalBodyPoseInWorld(*plan_context, plant->GetBodyByName(ee_link_));
+    desired_ee_pose_.head(3) = ee_link_pose_obj.translation();
+    const math::RollPitchYaw<double> rpy(ee_link_pose_obj.rotation());
+    desired_ee_pose_.tail(3) = rpy.vector();
   }
 
   void UpdateDynamicParam() {
