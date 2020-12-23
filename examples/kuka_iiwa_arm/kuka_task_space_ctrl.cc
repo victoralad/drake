@@ -240,21 +240,29 @@ class RobotPlanRunner {
   void GetDesiredEEPose(int64_t start_time_us, int64_t cur_time_us) {
     const double cur_traj_time_s =
         static_cast<double>(cur_time_us - start_time_us) / 1e6;
-    const auto desired_next = plan_->value(cur_traj_time_s);
+    const auto desired_next_pos = plan_->value(cur_traj_time_s);
+    const auto desired_next_vel = plan_->derivative().value(cur_traj_time_s);
 
     const multibody::MultibodyPlant<double>* plant = plant_;
     std::unique_ptr<systems::Context<double>> plan_context = plant->CreateDefaultContext();
     Eigen::VectorXd iiwa_q = Eigen::VectorXd::Zero(7);
+    Eigen::VectorXd iiwa_qdot = Eigen::VectorXd::Zero(7);
     for (int joint = 0; joint < kNumJoints; joint++) {
-      iiwa_q[joint] = desired_next(joint);
-      temp_q_[joint] = desired_next(joint);
+      iiwa_q[joint] = desired_next_pos(joint);
+      iiwa_qdot[joint] = desired_next_vel(joint);
+      temp_q_[joint] = desired_next_pos(joint);
     }
     plant->SetPositions(plan_context.get(), iiwa_instance_, iiwa_q);
+    plant->SetVelocities(plan_context.get(), iiwa_instance_, iiwa_qdot);
     // Get intermediate end effector goal pose.
     math::RigidTransform<double> ee_link_pose_obj = plant->EvalBodyPoseInWorld(*plan_context, plant->GetBodyByName(ee_link_));
     desired_ee_pose_.head(3) = ee_link_pose_obj.translation();
     const math::RollPitchYaw<double> rpy(ee_link_pose_obj.rotation());
     desired_ee_pose_.tail(3) = rpy.vector();
+    // Get intermediate end effector velocity.
+    multibody::SpatialVelocity<double> ee_link_velocity_obj = plant->EvalBodySpatialVelocityInWorld(*plan_context, plant->GetBodyByName(ee_link_));
+    desired_ee_velocity_.head(3) = ee_link_velocity_obj.translational();
+    desired_ee_velocity_.tail(3) = ee_link_velocity_obj.rotational();
   }
 
   void UpdateDynamicParam() {
