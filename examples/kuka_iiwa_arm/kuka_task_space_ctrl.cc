@@ -128,6 +128,7 @@ class RobotPlanRunner {
           iiwa_command.joint_position[joint] = iiwa_status_.joint_position_measured[joint];
           iiwa_command.joint_torque[joint] = joint_torque_cmd[joint];
           // iiwa_command.joint_torque[joint] = 0.0;
+          // iiwa_command.joint_position[joint] = temp_q_[joint];
         }
         std::cout << "--------------------------" << std::endl;
         // std::cout << Kp_ << std::endl;
@@ -212,6 +213,7 @@ class RobotPlanRunner {
 
     iiwa_q_ = Eigen::VectorXd::Zero(iiwa_status_.num_joints); // Joint positions.
     iiwa_qdot_ = Eigen::VectorXd::Zero(iiwa_status_.num_joints); // Joint velocities.
+    temp_q_ = Eigen::VectorXd::Zero(iiwa_status_.num_joints);
 
     int nv = plant_->num_velocities();
     M_ = Eigen::MatrixXd::Zero(nv, nv);
@@ -245,6 +247,7 @@ class RobotPlanRunner {
     Eigen::VectorXd iiwa_q = Eigen::VectorXd::Zero(7);
     for (int joint = 0; joint < kNumJoints; joint++) {
       iiwa_q[joint] = desired_next(joint);
+      temp_q_[joint] = desired_next(joint);
     }
     plant->SetPositions(plan_context.get(), iiwa_instance_, iiwa_q);
     // Get intermediate end effector goal pose.
@@ -316,6 +319,7 @@ class RobotPlanRunner {
   const multibody::ModelInstanceIndex iiwa_instance_; // Arm instance (does not include the gripper).
   int plan_number_{};
   std::unique_ptr<PiecewisePolynomial<double>> plan_;
+  Eigen::VectorXd temp_q_; // Placeholder for joint positions to implement position control.
 
 };
 

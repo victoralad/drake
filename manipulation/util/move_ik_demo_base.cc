@@ -84,7 +84,7 @@ std::optional<robotlocomotion::robot_plan_t> MoveIkDemoBase::Plan(
     // arbitrary choice).  This may be slowed down if executing
     // the plan in that time would exceed any joint velocity
     // limits.
-    std::vector<double> times{0, 2};
+    std::vector<double> times{0, 10};
     DRAKE_DEMAND(q_sol.size() == times.size());
 
     ApplyJointVelocityLimits(
