@@ -89,7 +89,7 @@ class RobotPlanRunner {
     iiwa_command.joint_torque.resize(kNumJoints, 0.);
 
     while (true) {
-      
+      std::cout << "--------------------------" << std::endl;
       UpdateDynamicParam();
       // Call lcm handle until at least one status message is
       // processed.
@@ -110,32 +110,57 @@ class RobotPlanRunner {
         Eigen::VectorXd error_ee_pose = desired_ee_pose_ - ee_pose_;
         Eigen::VectorXd error_velocity = desired_ee_velocity_ - ee_velocity_;
 
-        // Compute control torques.
-        Eigen::VectorXd cartesian_force = Eigen::VectorXd::Zero(6);
-        cartesian_force = Kp_ * error_ee_pose + Kv_ * error_velocity;
-        
-        std::cout << "desired   actual " << std::endl;
+        double threshold = 0.5;
+        double radius_sq = 0;
         for (int i = 0; i < 6; ++i) {
-          std::cout << desired_ee_pose_[i] << "      " << ee_pose_[i] << std::endl;
+          radius_sq += error_ee_pose[i] * error_ee_pose[i];
         }
 
-        Eigen::VectorXd joint_torque_cmd = Eigen::VectorXd::Zero(7);
-        joint_torque_cmd = Jq_V_WE_.transpose() * cartesian_force + coriolis_;
-      
-        iiwa_command.utime = iiwa_status_.utime;
+        std::cout << threshold << "   " << radius_sq << std::endl;
 
-        for (int joint = 0; joint < kNumJoints; joint++) {
-          iiwa_command.joint_position[joint] = iiwa_status_.joint_position_measured[joint];
-          iiwa_command.joint_torque[joint] = joint_torque_cmd[joint];
-          // iiwa_command.joint_torque[joint] = 0.0;
-          // iiwa_command.joint_position[joint] = temp_q_[joint];
-        }
-        std::cout << "--------------------------" << std::endl;
-        // std::cout << Kp_ << std::endl;
+        if (sqrt(radius_sq) < threshold) {
+          // Compute control torques.
+          Eigen::VectorXd cartesian_force = Eigen::VectorXd::Zero(6);
+          cartesian_force = Kp_ * error_ee_pose + Kv_ * error_velocity;
+          
+          std::cout << "AAAAAAAAAAAAAAAAAAAAAAAAA" << std::endl;
+          std::cout << "desired   actual " << std::endl;
+          for (int i = 0; i < 6; ++i) {
+            std::cout << desired_ee_pose_[i] << "      " << ee_pose_[i] << std::endl;
+          }
 
+          Eigen::VectorXd joint_torque_cmd = Eigen::VectorXd::Zero(7);
+          joint_torque_cmd = Jq_V_WE_.transpose() * cartesian_force + coriolis_;
         
+          iiwa_command.utime = iiwa_status_.utime;
+
+          for (int joint = 0; joint < kNumJoints; joint++) {
+            iiwa_command.joint_position[joint] = iiwa_status_.joint_position_measured[joint];
+            iiwa_command.joint_torque[joint] = joint_torque_cmd[joint];
+          }
+        }
+
+        else {
+          std::cout << "BBBBBBBBBBBBBBBBBBBBBBBB" << std::endl;
+          // int ii = 0;
+          // while (ii < 100)
+          // {
+          //   std::cout << "CCCCCCCCCCCCCCCCCCCCCC   " << sqrt(radius_sq) << std::endl;
+          // }
+          
+          std::cout << "desired   actual " << std::endl;
+          for (int i = 0; i < 6; ++i) {
+            std::cout << desired_ee_pose_[i] << "      " << ee_pose_[i] << std::endl;
+          }
+          iiwa_command.utime = iiwa_status_.utime;
+
+          for (int joint = 0; joint < kNumJoints; joint++) {
+            iiwa_command.joint_position[joint] = temp_q_[joint];
+          }
+        }
         
         lcm_.publish(kLcmCommandChannel, &iiwa_command);
+      
       }
     }
   }
@@ -243,8 +268,6 @@ class RobotPlanRunner {
     const auto desired_next_pos = plan_->value(cur_traj_time_s);
     const auto desired_next_vel = plan_->derivative().value(cur_traj_time_s);
 
-    const multibody::MultibodyPlant<double>* plant = plant_;
-    std::unique_ptr<systems::Context<double>> plan_context = plant->CreateDefaultContext();
     Eigen::VectorXd iiwa_q = Eigen::VectorXd::Zero(7);
     Eigen::VectorXd iiwa_qdot = Eigen::VectorXd::Zero(7);
     for (int joint = 0; joint < kNumJoints; joint++) {
@@ -252,17 +275,23 @@ class RobotPlanRunner {
       iiwa_qdot[joint] = desired_next_vel(joint);
       temp_q_[joint] = desired_next_pos(joint);
     }
-    plant->SetPositions(plan_context.get(), iiwa_instance_, iiwa_q);
-    plant->SetVelocities(plan_context.get(), iiwa_instance_, iiwa_qdot);
-    // Get intermediate end effector goal pose.
-    math::RigidTransform<double> ee_link_pose_obj = plant->EvalBodyPoseInWorld(*plan_context, plant->GetBodyByName(ee_link_));
-    desired_ee_pose_.head(3) = ee_link_pose_obj.translation();
-    const math::RollPitchYaw<double> rpy(ee_link_pose_obj.rotation());
-    desired_ee_pose_.tail(3) = rpy.vector();
-    // Get intermediate end effector velocity.
-    multibody::SpatialVelocity<double> ee_link_velocity_obj = plant->EvalBodySpatialVelocityInWorld(*plan_context, plant->GetBodyByName(ee_link_));
-    desired_ee_velocity_.head(3) = ee_link_velocity_obj.translational();
-    desired_ee_velocity_.tail(3) = ee_link_velocity_obj.rotational();
+
+    desired_ee_pose_ << FLAGS_x, FLAGS_y, FLAGS_z, FLAGS_roll, FLAGS_pitch, FLAGS_yaw;
+    
+    // const multibody::MultibodyPlant<double>* plant = plant_;
+    // std::unique_ptr<systems::Context<double>> plan_context = plant->CreateDefaultContext();
+
+    // plant->SetPositions(plan_context.get(), iiwa_instance_, iiwa_q);
+    // plant->SetVelocities(plan_context.get(), iiwa_instance_, iiwa_qdot);
+    // // Get intermediate end effector goal pose.
+    // math::RigidTransform<double> ee_link_pose_obj = plant->EvalBodyPoseInWorld(*plan_context, plant->GetBodyByName(ee_link_));
+    // desired_ee_pose_.head(3) = ee_link_pose_obj.translation();
+    // const math::RollPitchYaw<double> rpy(ee_link_pose_obj.rotation());
+    // desired_ee_pose_.tail(3) = rpy.vector();
+    // // Get intermediate end effector velocity.
+    // multibody::SpatialVelocity<double> ee_link_velocity_obj = plant->EvalBodySpatialVelocityInWorld(*plan_context, plant->GetBodyByName(ee_link_));
+    // desired_ee_velocity_.head(3) = ee_link_velocity_obj.translational();
+    // desired_ee_velocity_.tail(3) = ee_link_velocity_obj.rotational();
   }
 
   void UpdateDynamicParam() {
