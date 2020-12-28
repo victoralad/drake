@@ -26,10 +26,11 @@
 #include "drake/multibody/parsing/parser.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/math/rigid_transform.h"
+#include "drake/manipulation/kuka_iiwa/iiwa_constants.h"
 
 DEFINE_double(x, 0., "x coordinate to move to");
 DEFINE_double(y, 0., "y coordinate to move to");
-DEFINE_double(z, 0., "z coordinate to move to");
+DEFINE_double(z, 1.0, "z coordinate to move to");
 DEFINE_double(roll, 0., "target roll about world x axis for end effector");
 DEFINE_double(pitch, 0., "target pitch about world y axis for end effector");
 DEFINE_double(yaw, 0., "target yaw about world z axis for end effector");
@@ -53,6 +54,7 @@ const char* const kLcmStopChannel = "STOP";
 const int kNumJoints = 7;
 
 using trajectories::PiecewisePolynomial;
+using manipulation::kuka_iiwa::get_iiwa_max_joint_velocities;
 typedef PiecewisePolynomial<double> PPType;
 typedef Polynomial<double> PPPoly;
 typedef PPType::PolynomialMatrix PPMatrix;
@@ -116,9 +118,10 @@ class RobotPlanRunner {
           radius_sq += error_ee_pose[i] * error_ee_pose[i];
         }
 
-        std::cout << threshold << "   " << radius_sq << std::endl;
+        std::cout << threshold << "   " << sqrt(radius_sq) << std::endl;
 
         if (sqrt(radius_sq) < threshold) {
+          
           // Compute control torques.
           Eigen::VectorXd cartesian_force = Eigen::VectorXd::Zero(6);
           cartesian_force = Kp_ * error_ee_pose + Kv_ * error_velocity;
@@ -142,11 +145,6 @@ class RobotPlanRunner {
 
         else {
           std::cout << "BBBBBBBBBBBBBBBBBBBBBBBB" << std::endl;
-          // int ii = 0;
-          // while (ii < 100)
-          // {
-          //   std::cout << "CCCCCCCCCCCCCCCCCCCCCC   " << sqrt(radius_sq) << std::endl;
-          // }
           
           std::cout << "desired   actual " << std::endl;
           for (int i = 0; i < 6; ++i) {
@@ -169,6 +167,14 @@ class RobotPlanRunner {
   void HandleStatus(const ::lcm::ReceiveBuffer*, const std::string&,
                     const lcmt_iiwa_status* status) {
     iiwa_status_ = *status;
+
+    VectorX<double> max_velocities = get_iiwa_max_joint_velocities();
+    for (int joint = 0; joint < kNumJoints; joint++) {
+      if (iiwa_status_.joint_velocity_estimated[joint] > 0.5*max_velocities[joint]) {
+        std::cout << "Exceeded max velocity of joint " << joint + 1 << " !!!" << std::endl;
+        DRAKE_DEMAND(false);
+      }
+    }
   }
 
   void HandlePlan(const ::lcm::ReceiveBuffer*, const std::string&,
