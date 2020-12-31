@@ -29,7 +29,7 @@
 
 DEFINE_double(x, 0., "x coordinate to move to");
 DEFINE_double(y, 0., "y coordinate to move to");
-DEFINE_double(z, 0., "z coordinate to move to");
+DEFINE_double(z, 1.0, "z coordinate to move to");
 DEFINE_double(roll, 0., "target roll about world x axis for end effector");
 DEFINE_double(pitch, 0., "target pitch about world y axis for end effector");
 DEFINE_double(yaw, 0., "target yaw about world z axis for end effector");
@@ -113,8 +113,8 @@ class RobotPlanRunner {
 
       for (int joint = 0; joint < kNumJoints; joint++) {
         iiwa_command.joint_position[joint] = iiwa_status_.joint_position_measured[joint];
-        iiwa_command.joint_torque[joint] = joint_torque_cmd[joint];
-        // iiwa_command.joint_torque[joint] = 0.0;
+        // iiwa_command.joint_torque[joint] = joint_torque_cmd[joint];
+        iiwa_command.joint_torque[joint] = 0.0;
       }
       std::cout << "--------------------------" << std::endl;
       // std::cout << Kp_ << std::endl;
