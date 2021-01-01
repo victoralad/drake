@@ -26,6 +26,7 @@
 #include "drake/multibody/parsing/parser.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/math/rigid_transform.h"
+#include "drake/manipulation/kuka_iiwa/iiwa_constants.h"
 
 DEFINE_double(x, 0., "x coordinate to move to");
 DEFINE_double(y, 0., "y coordinate to move to");
@@ -52,6 +53,7 @@ const char* const kLcmPlanChannel = "COMMITTED_ROBOT_PLAN";
 const char* const kLcmStopChannel = "STOP";
 const int kNumJoints = 7;
 
+using manipulation::kuka_iiwa::get_iiwa_max_joint_velocities;
 using trajectories::PiecewisePolynomial;
 typedef PiecewisePolynomial<double> PPType;
 typedef Polynomial<double> PPPoly;
@@ -113,8 +115,8 @@ class RobotPlanRunner {
 
       for (int joint = 0; joint < kNumJoints; joint++) {
         iiwa_command.joint_position[joint] = iiwa_status_.joint_position_measured[joint];
-        // iiwa_command.joint_torque[joint] = joint_torque_cmd[joint];
-        iiwa_command.joint_torque[joint] = 0.0;
+        iiwa_command.joint_torque[joint] = joint_torque_cmd[joint];
+        // iiwa_command.joint_torque[joint] = 0.0;
       }
       std::cout << "--------------------------" << std::endl;
       // std::cout << Kp_ << std::endl;
@@ -160,9 +162,20 @@ class RobotPlanRunner {
 
   void UpdateDynamicParam() {
     
-    for (int i = 0; i < iiwa_status_.num_joints; i++) {
-      iiwa_q_[i] = iiwa_status_.joint_position_measured[i];
-      iiwa_qdot_[i] = iiwa_status_.joint_velocity_estimated[i];
+    for (int joint = 0; joint < iiwa_status_.num_joints; joint++) {
+      iiwa_q_[joint] = iiwa_status_.joint_position_measured[joint];
+      iiwa_qdot_[joint] = iiwa_status_.joint_velocity_estimated[joint];
+    }
+
+    // Check velocities to ensure they are within safe limits.
+    double limit_factor = 0.5;
+    Eigen::VectorXd vel_limit = get_iiwa_max_joint_velocities();
+    for (int joint = 0; joint < kNumJoints; joint++) {
+      if (iiwa_qdot_[joint] > limit_factor * vel_limit[joint]) {
+        std::cout << "Exceeded joint velocity limit at joint " << joint + 1 << " !!!" << std::endl;
+        std::cout << "Joint limit: " << vel_limit[joint] << "    Velocity: " << iiwa_qdot_[joint] << std::endl; 
+        DRAKE_DEMAND(false);
+      }
     }
     
     // Update context.
@@ -178,9 +191,6 @@ class RobotPlanRunner {
     ee_pose_.head(3) = ee_link_pose_obj_.translation();
     const math::RollPitchYaw<double> rpy(ee_link_pose_obj_.rotation());
     ee_pose_.tail(3) = rpy.vector();
-    // ee_pose_[3] = rpy.vector()[2];
-    // ee_pose_[4] = rpy.vector()[1];
-    // ee_pose_[5] = rpy.vector()[0];
 
     // Get end effector velocity.
     ee_link_velocity_obj_ = plant_->EvalBodySpatialVelocityInWorld(*context_, plant_->GetBodyByName(ee_link_));
