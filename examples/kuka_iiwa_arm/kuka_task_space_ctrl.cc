@@ -110,8 +110,13 @@ class RobotPlanRunner {
       }
 
       Eigen::VectorXd joint_torque_cmd = Eigen::VectorXd::Zero(7);
-      joint_torque_cmd = Jq_V_WE_.transpose() * cartesian_force + coriolis_;
-     
+      joint_torque_cmd = Jq_V_WE_.transpose() * cartesian_force + coriolis_; // Fix this! Size of left is not equal to size of right!!!
+      
+      // std::cout << Jq_V_WE_ << std::endl;
+      // std::cout << "-----------------warnock------------------" << std::endl;
+      // std::cout << Jq_V_WE_.transpose() * cartesian_force << std::endl;
+      // std::cout << "-----------------Ossoff------------------" << std::endl;
+      // std::cout << joint_torque_cmd << std::endl;
 
       for (int joint = 0; joint < kNumJoints; joint++) {
         iiwa_command.joint_position[joint] = iiwa_status_.joint_position_measured[joint];
@@ -152,10 +157,10 @@ class RobotPlanRunner {
     Kp_ = Eigen::MatrixXd::Identity(task_dim, task_dim);
     Kv_ = Eigen::MatrixXd::Identity(task_dim, task_dim);
     for (int i = 0; i < 3; i++) {
-      Kp_(i, i) = 15.0;
-      Kp_(i+3, i+3) = 1.5;
-      Kv_(i, i) = 2.0;
-      Kv_(i+3, i+3) = 0.5;
+      Kp_(i, i) = 85.0;
+      Kp_(i+3, i+3) = 12.5;
+      Kv_(i, i) = 5.0;
+      Kv_(i+3, i+3) = 1.5;
     }
 
   }
@@ -167,16 +172,16 @@ class RobotPlanRunner {
       iiwa_qdot_[joint] = iiwa_status_.joint_velocity_estimated[joint];
     }
 
-    // Check velocities to ensure they are within safe limits.
-    double limit_factor = 0.5;
-    Eigen::VectorXd vel_limit = get_iiwa_max_joint_velocities();
-    for (int joint = 0; joint < kNumJoints; joint++) {
-      if (iiwa_qdot_[joint] > limit_factor * vel_limit[joint]) {
-        std::cout << "Exceeded joint velocity limit at joint " << joint + 1 << " !!!" << std::endl;
-        std::cout << "Joint limit: " << vel_limit[joint] << "    Velocity: " << iiwa_qdot_[joint] << std::endl; 
-        DRAKE_DEMAND(false);
-      }
-    }
+    // // Check velocities to ensure they are within safe limits.
+    // double limit_factor = 0.5;
+    // Eigen::VectorXd vel_limit = get_iiwa_max_joint_velocities();
+    // for (int joint = 0; joint < kNumJoints; joint++) {
+    //   if (iiwa_qdot_[joint] > limit_factor * vel_limit[joint]) {
+    //     std::cout << "Exceeded joint velocity limit at joint " << joint + 1 << " !!!" << std::endl;
+    //     std::cout << "Joint limit: " << vel_limit[joint] << "    Velocity: " << iiwa_qdot_[joint] << std::endl; 
+    //     DRAKE_DEMAND(false);
+    //   }
+    // }
     
     // Update context.
     plant_->SetPositions(context_.get(), iiwa_instance_, iiwa_q_);
