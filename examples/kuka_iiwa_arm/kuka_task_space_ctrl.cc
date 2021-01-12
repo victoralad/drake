@@ -14,6 +14,13 @@
 #include <iostream>
 #include <memory>
 
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+
+//#include <omp.h>
+
 #include "lcm/lcm-cpp.hpp"
 #include "robotlocomotion/robot_plan_t.hpp"
 #include <gflags/gflags.h>
@@ -69,6 +76,17 @@ class RobotPlanRunner {
     // Ensure that a status message is received before initializing robot parameters.
     while (0 == lcm_.handleTimeout(10) || iiwa_status_.utime == -1) { }
     InitDynamicParam();
+    
+    int arr[6] = {1, 2, 3, 4, 5, 6};
+    mkfifo("/home/victora/Documents/robotics_new/catkin_ws/src/mobile_base_ctrl/src/end_effector_info", 0777);
+    int fd = open("/home/victora/Documents/robotics_new/catkin_ws/src/mobile_base_ctrl/src/end_effector_info", O_WRONLY);
+    if (fd == -1) {
+      std::cout << "Error with file!!!" << std::endl;
+    }
+    if (write(fd, arr, sizeof(int)*6) == -1) {
+      std::cout << "error writing to file!" << std::endl;
+    }
+    close(fd);
   }
 
   void Run() {
