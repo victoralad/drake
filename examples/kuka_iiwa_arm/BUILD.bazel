@@ -158,6 +158,12 @@ drake_cc_binary(
         "//manipulation/kuka_iiwa:iiwa_constants",
         "@lcmtypes_robotlocomotion",
     ],
+    copts = [
+        "-fopenmp",
+    ],
+    linkopts = [
+        "-fopenmp",
+    ],
 )
 
 drake_cc_binary(
