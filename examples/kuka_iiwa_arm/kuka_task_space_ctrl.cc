@@ -76,7 +76,6 @@ class RobotPlanRunner {
     while (0 == lcm_.handleTimeout(10) || iiwa_status_.utime == -1) { }
     InitDynamicParam();
     mkfifo("/home/victora/Documents/robotics_new/catkin_ws/src/mobile_base_ctrl/src/end_effector_info", 0777);
-    fd_ = open("/home/victora/Documents/robotics_new/catkin_ws/src/mobile_base_ctrl/src/end_effector_info", O_WRONLY);
   }
 
   void Run() {
@@ -97,7 +96,6 @@ class RobotPlanRunner {
       
       UpdateDynamicParam();
 
-      // send_data_thrd_ = std::thread(&RobotPlanRunner::SendData, this);
       SendData();
 
       // Call lcm handle until at least one status message is
@@ -136,15 +134,10 @@ class RobotPlanRunner {
         iiwa_command.joint_torque[joint] = 0.0;
       }
       std::cout << "--------------------------" << std::endl;
-      // std::cout << Kp_ << std::endl;
       
       lcm_.publish(kLcmCommandChannel, &iiwa_command);
     }
-  }
-
-  void Shutdown() {
-    close(fd_);
-    // send_data_thrd_.join();
+    
   }
 
  private:
@@ -184,14 +177,15 @@ class RobotPlanRunner {
 
   void SendData() {
     double arr[12];
-    // while (fd >= 0) {
-      for (int i = 0; i < 6; i++) {
-        arr[i] = ee_pose_[i];
-        arr[i + 6] = ee_velocity_[i];
-      }
-      if (write(fd_, arr, sizeof(double)*12) == -1) {
-        std::cout << "error writing to file!" << std::endl;
-      }
+    int fd = open("/home/victora/Documents/robotics_new/catkin_ws/src/mobile_base_ctrl/src/end_effector_info", O_WRONLY | O_NONBLOCK);
+    for (int i = 0; i < 6; i++) {
+      arr[i] = ee_pose_[i];
+      arr[i + 6] = ee_velocity_[i];
+    }
+    if (write(fd, arr, sizeof(double)*12) == -1) {
+      std::cout << "error writing to file! Pipe maybe closed on other end." << std::endl;
+    }
+    close(fd);
   }
 
   void UpdateDynamicParam() {
@@ -267,9 +261,6 @@ class RobotPlanRunner {
   Eigen::MatrixXd Kp_; // Stiffness gain matrix.
   Eigen::MatrixXd Kv_; // Damping gain matrix.
   const multibody::ModelInstanceIndex iiwa_instance_; // Arm instance (does not include the gripper).
-  int fd_; // FIFO pipe.
-  // std::thread send_data_thrd_;
-
 };
 
 int do_main() {
@@ -297,7 +288,6 @@ int do_main() {
 
   RobotPlanRunner runner(plant, iiwa_instance);
   runner.Run();
-  runner.Shutdown();
   return 0;
 }
 
