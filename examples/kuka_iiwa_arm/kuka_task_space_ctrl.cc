@@ -130,8 +130,8 @@ class RobotPlanRunner {
 
       for (int joint = 0; joint < kNumJoints; joint++) {
         iiwa_command.joint_position[joint] = iiwa_status_.joint_position_measured[joint];
-        // iiwa_command.joint_torque[joint] = joint_torque_cmd[joint];
-        iiwa_command.joint_torque[joint] = 0.0;
+        iiwa_command.joint_torque[joint] = joint_torque_cmd[joint];
+        // iiwa_command.joint_torque[joint] = 0.0;
       }
       std::cout << "--------------------------" << std::endl;
       
