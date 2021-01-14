@@ -13,13 +13,12 @@
 
 #include <iostream>
 #include <memory>
+#include <thread>
 
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
-
-#include <omp.h>
 
 #include "lcm/lcm-cpp.hpp"
 #include "robotlocomotion/robot_plan_t.hpp"
@@ -76,28 +75,8 @@ class RobotPlanRunner {
     // Ensure that a status message is received before initializing robot parameters.
     while (0 == lcm_.handleTimeout(10) || iiwa_status_.utime == -1) { }
     InitDynamicParam();
-    
-    omp_set_num_threads(2);
-    #pragma omp parallel
-    {
-      if (omp_get_thread_num() == 1) {
-        printf("Hello World... from thread = %d\n", omp_get_thread_num());
-        #pragma omp single nowait 
-        {
-          int arr[6] = {1, 2, 3, 4, 5, 6};
-          mkfifo("/home/victora/Documents/robotics_new/catkin_ws/src/mobile_base_ctrl/src/end_effector_info", 0777);
-          int fd = open("/home/victora/Documents/robotics_new/catkin_ws/src/mobile_base_ctrl/src/end_effector_info", O_WRONLY);
-          if (fd == -1) {
-            std::cout << "Error with file!!!" << std::endl;
-          }
-          if (write(fd, arr, sizeof(int)*6) == -1) {
-            std::cout << "error writing to file!" << std::endl;
-          }
-          close(fd);
-        }
-      }
-    }
-
+    mkfifo("/home/victora/Documents/robotics_new/catkin_ws/src/mobile_base_ctrl/src/end_effector_info", 0777);
+    fd_ = open("/home/victora/Documents/robotics_new/catkin_ws/src/mobile_base_ctrl/src/end_effector_info", O_WRONLY);
   }
 
   void Run() {
@@ -117,6 +96,10 @@ class RobotPlanRunner {
     while (true) {
       
       UpdateDynamicParam();
+
+      // send_data_thrd_ = std::thread(&RobotPlanRunner::SendData, this);
+      SendData();
+
       // Call lcm handle until at least one status message is
       // processed.
       while (0 == lcm_.handleTimeout(10) || iiwa_status_.utime == -1) { }
@@ -149,14 +132,19 @@ class RobotPlanRunner {
 
       for (int joint = 0; joint < kNumJoints; joint++) {
         iiwa_command.joint_position[joint] = iiwa_status_.joint_position_measured[joint];
-        iiwa_command.joint_torque[joint] = joint_torque_cmd[joint];
-        // iiwa_command.joint_torque[joint] = 0.0;
+        // iiwa_command.joint_torque[joint] = joint_torque_cmd[joint];
+        iiwa_command.joint_torque[joint] = 0.0;
       }
       std::cout << "--------------------------" << std::endl;
       // std::cout << Kp_ << std::endl;
       
       lcm_.publish(kLcmCommandChannel, &iiwa_command);
     }
+  }
+
+  void Shutdown() {
+    close(fd_);
+    // send_data_thrd_.join();
   }
 
  private:
@@ -192,6 +180,18 @@ class RobotPlanRunner {
       Kv_(i+3, i+3) = 1.5;
     }
 
+  }
+
+  void SendData() {
+    double arr[12];
+    // while (fd >= 0) {
+      for (int i = 0; i < 6; i++) {
+        arr[i] = ee_pose_[i];
+        arr[i + 6] = ee_velocity_[i];
+      }
+      if (write(fd_, arr, sizeof(double)*12) == -1) {
+        std::cout << "error writing to file!" << std::endl;
+      }
   }
 
   void UpdateDynamicParam() {
@@ -267,6 +267,8 @@ class RobotPlanRunner {
   Eigen::MatrixXd Kp_; // Stiffness gain matrix.
   Eigen::MatrixXd Kv_; // Damping gain matrix.
   const multibody::ModelInstanceIndex iiwa_instance_; // Arm instance (does not include the gripper).
+  int fd_; // FIFO pipe.
+  // std::thread send_data_thrd_;
 
 };
 
@@ -295,6 +297,7 @@ int do_main() {
 
   RobotPlanRunner runner(plant, iiwa_instance);
   runner.Run();
+  runner.Shutdown();
   return 0;
 }
 
