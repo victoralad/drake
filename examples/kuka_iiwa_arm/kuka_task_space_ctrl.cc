@@ -169,7 +169,7 @@ class RobotPlanRunner {
     for (int i = 0; i < 3; i++) {
       Kp_(i, i) = 85.0;
       Kp_(i+3, i+3) = 12.5;
-      Kv_(i, i) = 5.0;
+      Kv_(i, i) = 2.0;
       Kv_(i+3, i+3) = 1.5;
     }
 
